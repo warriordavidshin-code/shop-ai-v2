@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" monitorInterval="30">
+  <!-- shop-backend에서 실행 시 ../log = shop-ai-v2/log -->
+  <Properties>
+    <Property name="LOG_DIR">${env:LOG_DIR:-${sys:user.dir}/../log}</Property>
+    <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} [req=%X{requestId}] - %msg%n</Property>
+  </Properties>
+
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+    </Console>
+
+    <RollingFile name="DailyFile"
+                 fileName="${LOG_DIR}/shop-backend.log"
+                 filePattern="${LOG_DIR}/shop-backend-%d{yyyy-MM-dd}.log"
+                 ignoreExceptions="false">
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingFile>
+
+    <RollingFile name="DailyErrorFile"
+                 fileName="${LOG_DIR}/shop-backend-error.log"
+                 filePattern="${LOG_DIR}/shop-backend-error-%d{yyyy-MM-dd}.log"
+                 ignoreExceptions="false">
+      <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+      <PatternLayout pattern="${LOG_PATTERN}"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+      </Policies>
+      <DefaultRolloverStrategy max="30"/>
+    </RollingFile>
+  </Appenders>
+
+  <Loggers>
+    <Logger name="com.petitcamel.shop" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="DailyFile"/>
+      <AppenderRef ref="DailyErrorFile"/>
+    </Logger>
+
+    <Logger name="org.springframework.security" level="WARN"/>
+    <Logger name="org.hibernate.SQL" level="WARN"/>
+
+    <Root level="INFO">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="DailyFile"/>
+      <AppenderRef ref="DailyErrorFile"/>
+    </Root>
+  </Loggers>
+</Configuration>

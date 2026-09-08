@@ -1,0 +1,3 @@
+-- Sample catalog reference (see Flyway V5__sample_data.sql).
+-- No real PII. No plaintext passwords.
+-- Products: linen shirt, cotton dress, wide pants, kids tee with SKUs and inventory.

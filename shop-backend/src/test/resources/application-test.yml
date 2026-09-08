@@ -1,0 +1,19 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-long-enough-for-hs256-algorithms
+  cookie:
+    secure: false
+  ai:
+    provider: rule
+    openai:
+      api-key:
+      model:
