@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fdfcf9;
+  --surface: #ffffff;
+  --surface-soft: #f8f3eb;
+  --surface-warm: #f2e9dc;
+  --foreground: #302a25;
+  --muted-foreground: #7c7268;
+  --border: #e9e0d5;
+  --brand: #ad7a50;
+  --brand-hover: #93623d;
+  --brand-soft: #efe0d0;
+  --accent: #6c765d;
+  --accent-soft: #e9ede4;
+  --danger: #b5473c;
+  --success: #477258;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-soft: var(--surface-soft);
+  --color-surface-warm: var(--surface-warm);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

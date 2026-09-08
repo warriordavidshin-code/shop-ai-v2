@@ -28,6 +28,17 @@ Full stack:
 docker compose up --build
 ```
 
+## Vercel (frontend)
+
+GitHub 저장소 루트에는 Next.js가 없고 `shop-frontend`에 있습니다.
+
+1. Vercel에서 이 저장소를 Import
+2. **Root Directory**를 `shop-frontend`로 설정
+3. Environment Variables 예시:
+   - `BACKEND_URL` / `NEXT_PUBLIC_BACKEND_URL` — 백엔드 API 주소 (예: `https://api.example.com`)
+
+Root Directory를 비우면 배포 URL이 `NOT_FOUND` 404가 납니다.
+
 ## Local DB
 
 | Key | Value |
