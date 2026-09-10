@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
+import { DaumPostcodeFields } from "@/components/address/DaumPostcodeFields";
 import { formatKrw } from "@/lib/format";
 import { ApiError } from "@/lib/api/client";
 import { getCart, type Cart } from "@/features/cart/api";
@@ -59,6 +60,10 @@ export function CheckoutClient() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!cart || cart.items.length === 0) return;
+    if (!form.postcode || !form.address1) {
+      setError("우편번호 찾기로 배송 주소를 입력해 주세요.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -94,10 +99,6 @@ export function CheckoutClient() {
           [
             ["receiverName", "받는 분"],
             ["receiverPhone", "연락처"],
-            ["postcode", "우편번호"],
-            ["address1", "기본주소"],
-            ["address2", "상세주소"],
-            ["orderMemo", "요청사항"],
           ] as const
         ).map(([key, label]) => (
           <label key={key} className="flex flex-col gap-1 text-sm">
@@ -106,10 +107,27 @@ export function CheckoutClient() {
               className="h-11 rounded-xl border border-border px-3"
               value={form[key]}
               onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))}
-              required={key !== "address2" && key !== "orderMemo"}
+              required
             />
           </label>
         ))}
+        <DaumPostcodeFields
+          postcode={form.postcode}
+          address1={form.address1}
+          address2={form.address2}
+          onPostcodeChange={(value) => setForm((prev) => ({ ...prev, postcode: value }))}
+          onAddress1Change={(value) => setForm((prev) => ({ ...prev, address1: value }))}
+          onAddress2Change={(value) => setForm((prev) => ({ ...prev, address2: value }))}
+          disabled={busy}
+        />
+        <label className="flex flex-col gap-1 text-sm">
+          <span>요청사항</span>
+          <input
+            className="h-11 rounded-xl border border-border px-3"
+            value={form.orderMemo}
+            onChange={(e) => setForm((prev) => ({ ...prev, orderMemo: e.target.value }))}
+          />
+        </label>
       </div>
 
       <div className="flex flex-col gap-4">

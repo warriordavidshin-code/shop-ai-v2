@@ -3,6 +3,7 @@ import { signupSchema } from "./schemas";
 
 describe("signupSchema", () => {
   const valid = {
+    loginId: "cameluser",
     email: "user@example.com",
     password: "StrongPassword1!",
     passwordConfirm: "StrongPassword1!",
@@ -19,6 +20,15 @@ describe("signupSchema", () => {
 
   it("accepts valid signup payload", () => {
     expect(signupSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("accepts signup without email", () => {
+    expect(signupSchema.safeParse({ ...valid, email: "" }).success).toBe(true);
+  });
+
+  it("rejects invalid login id", () => {
+    const result = signupSchema.safeParse({ ...valid, loginId: "ab" });
+    expect(result.success).toBe(false);
   });
 
   it("rejects weak password", () => {

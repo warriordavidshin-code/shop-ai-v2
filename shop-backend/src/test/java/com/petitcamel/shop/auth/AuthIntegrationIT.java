@@ -110,9 +110,10 @@ class AuthIntegrationIT {
         String email = uniqueEmail("signup");
         MvcResult result = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("signup"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value(email))
+                .andExpect(jsonPath("$.loginId").isString())
                 .andExpect(jsonPath("$.age").value(36))
                 .andExpect(jsonPath("$.role").value("CUSTOMER"))
                 .andReturn();
@@ -126,12 +127,27 @@ class AuthIntegrationIT {
         String email = uniqueEmail("dup");
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("dup1"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email.toUpperCase(), "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("dup2"), email.toUpperCase(), "StrongPassword1!", "1990-01-01")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
+    }
+
+    @Test
+    void duplicateLoginIdRejected() throws Exception {
+        String loginId = uniqueLoginId("sameid");
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson(loginId, uniqueEmail("id1"), "StrongPassword1!", "1990-01-01")))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(signupJson(loginId.toUpperCase(), uniqueEmail("id2"), "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
@@ -140,7 +156,7 @@ class AuthIntegrationIT {
     void weakPasswordRejected() throws Exception {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(uniqueEmail("weak"), "password", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("weak"), uniqueEmail("weak"), "password", "1990-01-01")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
@@ -149,7 +165,7 @@ class AuthIntegrationIT {
     void under14Rejected() throws Exception {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(uniqueEmail("child"), "StrongPassword1!", "2015-01-01")))
+                        .content(signupJson(uniqueLoginId("child"), uniqueEmail("child"), "StrongPassword1!", "2015-01-01")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BUSINESS_RULE_VIOLATION"))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("14세")));
@@ -157,41 +173,44 @@ class AuthIntegrationIT {
 
     @Test
     void loginSuccessAndFailure() throws Exception {
+        String loginId = uniqueLoginId("login");
         String email = uniqueEmail("login");
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(loginId, email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"StrongPassword1!"}
-                                """.formatted(email)))
+                                {"loginId":"%s","password":"StrongPassword1!"}
+                                """.formatted(loginId)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loginId").value(loginId))
                 .andExpect(jsonPath("$.email").value(email));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"WrongPassword1!"}
-                                """.formatted(email)))
+                                {"loginId":"%s","password":"WrongPassword1!"}
+                                """.formatted(loginId)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("이메일 또는 비밀번호가 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"missing-%s","password":"StrongPassword1!"}
-                                """.formatted(email)))
+                                {"loginId":"missing%s","password":"StrongPassword1!"}
+                                """.formatted(loginId)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("이메일 또는 비밀번호가 올바르지 않습니다."));
+                .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
     }
 
     @Test
     void blockedAccountCannotLogin() throws Exception {
         String email = uniqueEmail("blocked");
         Member member = new Member();
+        member.setLoginId(uniqueLoginId("blocked"));
         member.setEmail(email);
         member.setPasswordHash(passwordEncoder.encode("StrongPassword1!"));
         member.setName("차단회원");
@@ -210,8 +229,8 @@ class AuthIntegrationIT {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"email":"%s","password":"StrongPassword1!"}
-                                """.formatted(email)))
+                                {"loginId":"%s","password":"StrongPassword1!"}
+                                """.formatted(member.getLoginId())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -221,7 +240,7 @@ class AuthIntegrationIT {
         String email = uniqueEmail("age");
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "2000-09-04")))
+                        .content(signupJson(uniqueLoginId("age"), email, "StrongPassword1!", "2000-09-04")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.age").value(26));
     }
@@ -231,7 +250,7 @@ class AuthIntegrationIT {
         String email = uniqueEmail("refresh");
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("refresh"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -262,7 +281,7 @@ class AuthIntegrationIT {
         String email = uniqueEmail("logout");
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("logout"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -289,7 +308,7 @@ class AuthIntegrationIT {
         String email = uniqueEmail("customer");
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("customer"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -307,7 +326,7 @@ class AuthIntegrationIT {
         String email = uniqueEmail("me");
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(signupJson(email, "StrongPassword1!", "1990-01-01")))
+                        .content(signupJson(uniqueLoginId("me"), email, "StrongPassword1!", "1990-01-01")))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -322,8 +341,9 @@ class AuthIntegrationIT {
                 .andExpect(jsonPath("$.age").value(36));
     }
 
-    private String signupJson(String email, String password, String birthDate) throws Exception {
+    private String signupJson(String loginId, String email, String password, String birthDate) throws Exception {
         return objectMapper.writeValueAsString(Map.ofEntries(
+                Map.entry("loginId", loginId),
                 Map.entry("email", email),
                 Map.entry("password", password),
                 Map.entry("name", "홍길동"),
@@ -340,6 +360,15 @@ class AuthIntegrationIT {
 
     private String uniqueEmail(String prefix) {
         return prefix + "+" + UUID.randomUUID() + "@example.com";
+    }
+
+    private String uniqueLoginId(String prefix) {
+        String base = prefix.replaceAll("[^A-Za-z0-9]", "");
+        if (base.isEmpty() || !Character.isLetter(base.charAt(0))) {
+            base = "u" + base;
+        }
+        String id = (base + UUID.randomUUID().toString().replace("-", "")).toLowerCase();
+        return id.substring(0, Math.min(20, id.length()));
     }
 
     private String extractCookie(MvcResult result, String name) {

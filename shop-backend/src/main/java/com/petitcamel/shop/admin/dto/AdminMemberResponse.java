@@ -7,6 +7,7 @@ import java.time.Instant;
 
 public record AdminMemberResponse(
         Long memberId,
+        String loginId,
         String email,
         String name,
         MemberRole role,

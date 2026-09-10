@@ -126,6 +126,7 @@ public class MemberService {
     public MemberResponse toResponse(Member member) {
         return new MemberResponse(
                 member.getMemberId(),
+                member.getLoginId(),
                 member.getEmail(),
                 member.getName(),
                 member.getBirthDate(),
@@ -141,6 +142,7 @@ public class MemberService {
     public AdminMemberResponse toAdminResponse(Member member) {
         return new AdminMemberResponse(
                 member.getMemberId(),
+                member.getLoginId(),
                 member.getEmail(),
                 member.getName(),
                 member.getRole(),

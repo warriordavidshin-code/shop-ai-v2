@@ -68,7 +68,8 @@ export async function login(values: LoginValues): Promise<Member> {
 
 export async function signup(values: SignupValues): Promise<Member> {
   const payload = {
-    email: values.email,
+    loginId: values.loginId,
+    email: values.email || null,
     password: values.password,
     name: values.name,
     birthDate: values.birthDate,
@@ -91,9 +92,13 @@ export async function signup(values: SignupValues): Promise<Member> {
 }
 
 export async function logout(): Promise<void> {
-  const response = await shopFetch("/auth/logout", { method: "POST" });
-  if (!response.ok && response.status !== 204) {
-    throw await parseError(response);
+  try {
+    const response = await shopFetch("/auth/logout", { method: "POST" });
+    if (!response.ok && response.status !== 204) {
+      throw await parseError(response);
+    }
+  } catch {
+    // Cookie clear or navigation must still proceed on the client.
   }
 }
 

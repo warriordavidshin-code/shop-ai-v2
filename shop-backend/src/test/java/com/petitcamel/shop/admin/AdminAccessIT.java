@@ -104,6 +104,7 @@ class AdminAccessIT {
 
         Member target = new Member();
         Instant now = Instant.now();
+        target.setLoginId(uniqueLoginId("target"));
         target.setEmail("target+" + UUID.randomUUID() + "@example.com");
         target.setPasswordHash(passwordEncoder.encode("StrongPassword1!"));
         target.setName("대상회원");
@@ -151,11 +152,13 @@ class AdminAccessIT {
     }
 
     private String createAdminAndLogin(String prefix) throws Exception {
+        String loginId = uniqueLoginId(prefix);
         String email = prefix + "+" + UUID.randomUUID() + "@example.com";
         String password = "StrongPassword1!";
 
         Instant now = Instant.now();
         Member admin = new Member();
+        admin.setLoginId(loginId);
         admin.setEmail(email);
         admin.setPasswordHash(passwordEncoder.encode(password));
         admin.setName("관리자");
@@ -175,7 +178,7 @@ class AdminAccessIT {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "email", email,
+                                "loginId", loginId,
                                 "password", password))))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -186,10 +189,12 @@ class AdminAccessIT {
     }
 
     private String signupAndGetAccess(String prefix) throws Exception {
+        String loginId = uniqueLoginId(prefix);
         String email = prefix + "+" + UUID.randomUUID() + "@example.com";
         MvcResult signup = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.ofEntries(
+                                Map.entry("loginId", loginId),
                                 Map.entry("email", email),
                                 Map.entry("password", "StrongPassword1!"),
                                 Map.entry("name", "고객"),
@@ -207,5 +212,14 @@ class AdminAccessIT {
         Cookie cookie = signup.getResponse().getCookie("access_token");
         assertThat(cookie).as("access_token").isNotNull();
         return cookie.getValue();
+    }
+
+    private String uniqueLoginId(String prefix) {
+        String base = prefix.replaceAll("[^A-Za-z0-9]", "");
+        if (base.isEmpty() || !Character.isLetter(base.charAt(0))) {
+            base = "u" + base;
+        }
+        String id = (base + UUID.randomUUID().toString().replace("-", "")).toLowerCase();
+        return id.substring(0, Math.min(20, id.length()));
     }
 }

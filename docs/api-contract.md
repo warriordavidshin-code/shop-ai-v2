@@ -46,6 +46,7 @@ Request:
 
 ```json
 {
+  "loginId": "cameluser",
   "email": "user@example.com",
   "password": "StrongPassword1!",
   "name": "홍길동",
@@ -60,13 +61,13 @@ Request:
 }
 ```
 
-Validation: email unique+format; password ≥10 with letter/digit/special; name 2–100; birthDate not future; under-14 requires guardian policy (reject with guidance); terms/privacy required.
+Validation: loginId unique (영문 시작 4–20자); email optional unique+format; password ≥10 with letter/digit/special; name 2–100; birthDate not future; under-14 requires guardian policy (reject with guidance); terms/privacy required.
 
 Response `201`: `MemberResponse` + Set-Cookie (access/refresh)
 
 ### POST `/api/auth/login`
 
-Request: `{ "email", "password" }`  
+Request: `{ "loginId", "password" }` (이메일도 loginId에 넣으면 기존 계정 로그인 가능)  
 Response `200`: `MemberResponse` + cookies  
 실패 메시지는 계정 존재 여부와 무관하게 동일.
 
@@ -86,6 +87,7 @@ Response `200`:
 ```json
 {
   "memberId": 1,
+  "loginId": "cameluser",
   "email": "user@example.com",
   "name": "홍길동",
   "birthDate": "1990-01-01",
@@ -104,7 +106,7 @@ Response `200`:
 ### PATCH `/api/members/me`
 
 Request (부분): `name`, `birthDate`, `gender`, `phone`, `postcode`, `address1`, `address2`  
-이메일 변경은 읽기 전용 (본인확인 없음).
+아이디/이메일 변경은 읽기 전용 (본인확인 없음).
 
 ### PATCH `/api/members/me/password`
 

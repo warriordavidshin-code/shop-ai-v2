@@ -26,13 +26,13 @@ public class JwtService {
         this.secretKey = Keys.hmacShaKeyFor(properties.getSecret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createAccessToken(Long memberId, String email, MemberRole role) {
+    public String createAccessToken(Long memberId, String loginId, MemberRole role) {
         Instant now = clock.instant();
         Instant expiresAt = now.plusSeconds(properties.getAccessTokenSeconds());
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
                 .claim("memberId", memberId)
-                .claim("email", email)
+                .claim("loginId", loginId)
                 .claim("role", role.name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
@@ -52,9 +52,12 @@ public class JwtService {
             if (memberId == null && claims.getSubject() != null) {
                 memberId = Long.valueOf(claims.getSubject());
             }
-            String email = claims.get("email", String.class);
+            String loginId = claims.get("loginId", String.class);
+            if (loginId == null) {
+                loginId = claims.get("email", String.class);
+            }
             String role = claims.get("role", String.class);
-            return new AccessTokenClaims(memberId, email, MemberRole.valueOf(role));
+            return new AccessTokenClaims(memberId, loginId, MemberRole.valueOf(role));
         } catch (JwtException | IllegalArgumentException ex) {
             throw new InvalidTokenException("유효하지 않은 액세스 토큰입니다.", ex);
         }
@@ -68,7 +71,7 @@ public class JwtService {
         return properties.getRefreshTokenSeconds();
     }
 
-    public record AccessTokenClaims(Long memberId, String email, MemberRole role) {
+    public record AccessTokenClaims(Long memberId, String loginId, MemberRole role) {
     }
 
     public static class InvalidTokenException extends RuntimeException {

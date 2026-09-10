@@ -42,7 +42,11 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     responseHeaders.set("content-type", responseContentType);
   }
 
-  const body = await backendResponse.arrayBuffer();
+  const emptyBody =
+    backendResponse.status === 204 ||
+    backendResponse.status === 205 ||
+    backendResponse.status === 304;
+  const body = emptyBody ? null : await backendResponse.arrayBuffer();
   return new NextResponse(body, {
     status: backendResponse.status,
     headers: responseHeaders,

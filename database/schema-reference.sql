@@ -4,7 +4,8 @@
 -- V1 member & auth
 CREATE TABLE member (
     member_id       BIGSERIAL PRIMARY KEY,
-    email           VARCHAR(255) NOT NULL,
+    login_id        VARCHAR(32) NOT NULL,
+    email           VARCHAR(255),
     password_hash   VARCHAR(255) NOT NULL,
     name            VARCHAR(100) NOT NULL,
     birth_date      DATE NOT NULL,

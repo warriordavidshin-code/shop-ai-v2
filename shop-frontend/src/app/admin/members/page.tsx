@@ -32,6 +32,7 @@ export default async function AdminMembersPage() {
             <thead className="bg-surface-soft text-muted-foreground">
               <tr>
                 <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">아이디</th>
                 <th className="px-4 py-3">이메일</th>
                 <th className="px-4 py-3">이름</th>
                 <th className="px-4 py-3">상태</th>
@@ -39,10 +40,11 @@ export default async function AdminMembersPage() {
             </thead>
             <tbody>
               {rows.map(
-                (row: { memberId: number; email: string; name: string; status: string }) => (
+                (row: { memberId: number; loginId?: string; email: string; name: string; status: string }) => (
                   <tr key={row.memberId} className="border-t border-border">
                     <td className="px-4 py-3">{row.memberId}</td>
-                    <td className="px-4 py-3">{row.email}</td>
+                    <td className="px-4 py-3">{row.loginId ?? "-"}</td>
+                    <td className="px-4 py-3">{row.email ?? "-"}</td>
                     <td className="px-4 py-3">{row.name}</td>
                     <td className="px-4 py-3">{row.status}</td>
                   </tr>

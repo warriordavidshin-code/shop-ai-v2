@@ -34,7 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 try {
                     JwtService.AccessTokenClaims claims = jwtService.parseAccessToken(token);
                     MemberPrincipal principal = new MemberPrincipal(
-                            claims.memberId(), claims.email(), claims.role());
+                            claims.memberId(), claims.loginId(), claims.role());
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

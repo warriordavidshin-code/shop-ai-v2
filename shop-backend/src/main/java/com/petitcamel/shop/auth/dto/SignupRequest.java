@@ -10,9 +10,15 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
+import java.util.Locale;
 
 public record SignupRequest(
-        @NotBlank(message = "이메일은 필수입니다.")
+        @NotBlank(message = "아이디는 필수입니다.")
+        @Pattern(
+                regexp = "^[a-zA-Z][a-zA-Z0-9_]{3,19}$",
+                message = "아이디는 영문으로 시작해 4~20자의 영문, 숫자, 밑줄만 사용할 수 있습니다.")
+        String loginId,
+
         @Email(message = "올바른 이메일 형식이 아닙니다.")
         @Size(max = 255)
         String email,
@@ -56,4 +62,8 @@ public record SignupRequest(
         @AssertTrue(message = "개인정보 처리방침에 동의해야 합니다.")
         boolean privacyAgreed
 ) {
+    public SignupRequest {
+        loginId = loginId == null ? null : loginId.trim().toLowerCase(Locale.ROOT);
+        email = (email == null || email.isBlank()) ? null : email.trim();
+    }
 }

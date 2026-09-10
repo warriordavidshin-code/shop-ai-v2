@@ -30,9 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,8 +60,9 @@ class AuthServiceTest {
     }
 
     @Test
-    void signupNormalizesEmailAndIssuesTokens() {
+    void signupNormalizesLoginIdAndIssuesTokens() {
         SignupRequest request = new SignupRequest(
+                "CamelUser",
                 "User@Example.COM",
                 "StrongPassword1!",
                 "홍길동",
@@ -76,6 +75,7 @@ class AuthServiceTest {
                 true,
                 true);
 
+        when(memberRepository.existsByLoginId("cameluser")).thenReturn(false);
         when(memberRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(passwordEncoder.encode("StrongPassword1!")).thenReturn("hashed");
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
@@ -83,11 +83,11 @@ class AuthServiceTest {
             m.setMemberId(10L);
             return m;
         });
-        when(jwtService.createAccessToken(eq(10L), eq("user@example.com"), eq(MemberRole.CUSTOMER)))
+        when(jwtService.createAccessToken(eq(10L), eq("cameluser"), eq(MemberRole.CUSTOMER)))
                 .thenReturn("access");
         when(refreshTokenService.issue(10L)).thenReturn("refresh");
         when(memberService.toResponse(any(Member.class))).thenReturn(
-                new MemberResponse(10L, "user@example.com", "홍길동", LocalDate.of(1990, 1, 1),
+                new MemberResponse(10L, "cameluser", "user@example.com", "홍길동", LocalDate.of(1990, 1, 1),
                         36, Gender.FEMALE, "01012345678", "30100", "세종", null, MemberRole.CUSTOMER));
 
         AuthService.AuthResult result = authService.signup(request);
@@ -96,15 +96,16 @@ class AuthServiceTest {
         assertThat(result.refreshToken()).isEqualTo("refresh");
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
         verify(memberRepository).save(captor.capture());
+        assertThat(captor.getValue().getLoginId()).isEqualTo("cameluser");
         assertThat(captor.getValue().getEmail()).isEqualTo("user@example.com");
         verify(memberService).validateAgePolicy(LocalDate.of(1990, 1, 1));
     }
 
     @Test
-    void loginUsesSameMessageWhenEmailMissing() {
-        when(memberRepository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
+    void loginUsesSameMessageWhenLoginIdMissing() {
+        when(memberRepository.findByLoginId("missinguser")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("missing@example.com", "pw")))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("missinguser", "pw")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
@@ -118,13 +119,14 @@ class AuthServiceTest {
     void loginBlocksWithdrawnAccount() {
         Member member = new Member();
         member.setMemberId(1L);
+        member.setLoginId("cameluser");
         member.setEmail("user@example.com");
         member.setPasswordHash("hashed");
         member.setStatus(MemberStatus.WITHDRAWN);
-        when(memberRepository.findByEmail("user@example.com")).thenReturn(Optional.of(member));
+        when(memberRepository.findByLoginId("cameluser")).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("StrongPassword1!", "hashed")).thenReturn(true);
 
-        assertThatThrownBy(() -> authService.login(new LoginRequest("user@example.com", "StrongPassword1!")))
+        assertThatThrownBy(() -> authService.login(new LoginRequest("cameluser", "StrongPassword1!")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }

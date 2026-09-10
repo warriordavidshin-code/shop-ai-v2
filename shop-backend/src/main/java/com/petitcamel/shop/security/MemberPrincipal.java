@@ -11,12 +11,12 @@ import java.util.List;
 public class MemberPrincipal implements UserDetails {
 
     private final Long memberId;
-    private final String email;
+    private final String loginId;
     private final MemberRole role;
 
-    public MemberPrincipal(Long memberId, String email, MemberRole role) {
+    public MemberPrincipal(Long memberId, String loginId, MemberRole role) {
         this.memberId = memberId;
-        this.email = email;
+        this.loginId = loginId;
         this.role = role;
     }
 
@@ -24,8 +24,12 @@ public class MemberPrincipal implements UserDetails {
         return memberId;
     }
 
+    public String getLoginId() {
+        return loginId;
+    }
+
     public String getEmail() {
-        return email;
+        return loginId;
     }
 
     public MemberRole getRole() {
@@ -44,7 +48,7 @@ public class MemberPrincipal implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return loginId;
     }
 
     @Override

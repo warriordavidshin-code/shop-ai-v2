@@ -28,7 +28,7 @@ export function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { loginId: "", password: "" },
   });
 
   const onSubmit = handleSubmit(async (values) => {
@@ -49,28 +49,28 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-4" noValidate>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="email" className="text-sm font-medium text-foreground">
-          이메일
+        <label htmlFor="loginId" className="text-sm font-medium text-foreground">
+          아이디
         </label>
         <input
-          id="email"
-          type="email"
-          autoComplete="email"
+          id="loginId"
+          type="text"
+          autoComplete="username"
           className="h-11 rounded-xl border border-border bg-surface px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand"
-          aria-invalid={!!errors.email}
-          aria-describedby={errors.email ? "email-error" : undefined}
-          {...register("email")}
+          aria-invalid={!!errors.loginId}
+          aria-describedby={errors.loginId ? "loginId-error" : undefined}
+          {...register("loginId")}
         />
-        {errors.email ? (
-          <p id="email-error" className="text-sm text-danger">
-            {errors.email.message}
+        {errors.loginId ? (
+          <p id="loginId-error" className="text-sm text-danger">
+            {errors.loginId.message}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="password" className="text-sm font-medium text-foreground">
-          비밀번호
+          비밀번호 (특수문자 포함)
         </label>
         <div className="relative">
           <input

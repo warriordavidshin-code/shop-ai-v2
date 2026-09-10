@@ -22,7 +22,10 @@ public class Member {
     @Column(name = "member_id")
     private Long memberId;
 
-    @Column(name = "email", nullable = false, unique = true, length = 255)
+    @Column(name = "login_id", nullable = false, unique = true, length = 32)
+    private String loginId;
+
+    @Column(name = "email", unique = true, length = 255)
     private String email;
 
     @Column(name = "password_hash", nullable = false, length = 255)
@@ -77,6 +80,14 @@ public class Member {
 
     public void setMemberId(Long memberId) {
         this.memberId = memberId;
+    }
+
+    public String getLoginId() {
+        return loginId;
+    }
+
+    public void setLoginId(String loginId) {
+        this.loginId = loginId;
     }
 
     public String getEmail() {

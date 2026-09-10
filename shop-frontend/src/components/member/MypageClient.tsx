@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { logout } from "@/features/auth/api";
 import type { Member } from "@/features/auth/schemas";
@@ -13,25 +12,23 @@ const genderLabel: Record<Member["gender"], string> = {
 };
 
 export function MypageClient({ member }: { member: Member }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function onLogout() {
     setBusy(true);
     try {
       await logout();
-      router.push("/");
-      router.refresh();
     } finally {
-      setBusy(false);
+      window.location.assign("/");
     }
   }
 
   return (
     <div className="flex flex-col gap-6">
       <dl className="grid gap-4 rounded-xl border border-border bg-surface p-6 text-sm">
+        <Row label="아이디" value={member.loginId} />
         <Row label="이름" value={member.name} />
-        <Row label="이메일" value={member.email} />
+        <Row label="이메일" value={member.email ?? "-"} />
         <Row label="생년월일" value={member.birthDate} />
         <Row label="만 나이" value={`${member.age}세`} />
         <Row label="성별" value={genderLabel[member.gender]} />

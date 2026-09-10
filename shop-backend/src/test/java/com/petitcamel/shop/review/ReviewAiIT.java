@@ -290,10 +290,12 @@ class ReviewAiIT {
     }
 
     private String signupAndGetAccessToken() throws Exception {
+        String loginId = ("review" + UUID.randomUUID().toString().replace("-", "")).substring(0, 20);
         String email = "review-ai+" + UUID.randomUUID() + "@example.com";
         MvcResult result = mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.ofEntries(
+                                Map.entry("loginId", loginId),
                                 Map.entry("email", email),
                                 Map.entry("password", "StrongPassword1!"),
                                 Map.entry("name", "리뷰어"),

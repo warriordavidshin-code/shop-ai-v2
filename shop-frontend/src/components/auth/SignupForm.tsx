@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { DaumPostcodeFields } from "@/components/address/DaumPostcodeFields";
 import { ApiError, signup } from "@/features/auth/api";
 import { signupSchema, type SignupValues } from "@/features/auth/schemas";
 
@@ -31,10 +32,12 @@ export function SignupForm() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
+      loginId: "",
       email: "",
       password: "",
       passwordConfirm: "",
@@ -72,18 +75,26 @@ export function SignupForm() {
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-8" noValidate>
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">계정 정보</h2>
-        <Field label="이메일" error={errors.email?.message}>
+        <Field label="아이디" error={errors.loginId?.message} hint="영문으로 시작해 4~20자, 영문/숫자/밑줄">
+          <input
+            autoComplete="username"
+            className={inputClass}
+            {...register("loginId")}
+          />
+        </Field>
+        <Field label="이메일 (선택)" error={errors.email?.message}>
           <input
             type="email"
+            autoComplete="email"
             className={inputClass}
             {...register("email")}
           />
         </Field>
-        <Field label="비밀번호" error={errors.password?.message}>
-          <input type="password" className={inputClass} {...register("password")} />
+        <Field label="비밀번호 (특수문자 포함)" error={errors.password?.message}>
+          <input type="password" autoComplete="new-password" className={inputClass} {...register("password")} />
         </Field>
-        <Field label="비밀번호 확인" error={errors.passwordConfirm?.message}>
-          <input type="password" className={inputClass} {...register("passwordConfirm")} />
+        <Field label="비밀번호 확인 (특수문자 포함)" error={errors.passwordConfirm?.message}>
+          <input type="password" autoComplete="new-password" className={inputClass} {...register("passwordConfirm")} />
         </Field>
       </section>
 
@@ -114,15 +125,20 @@ export function SignupForm() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">주소와 약관 동의</h2>
-        <Field label="우편번호" error={errors.postcode?.message}>
-          <input className={inputClass} {...register("postcode")} />
-        </Field>
-        <Field label="기본주소" error={errors.address1?.message}>
-          <input className={inputClass} {...register("address1")} />
-        </Field>
-        <Field label="상세주소" error={errors.address2?.message}>
-          <input className={inputClass} {...register("address2")} />
-        </Field>
+        <DaumPostcodeFields
+          postcode={watch("postcode")}
+          address1={watch("address1")}
+          address2={watch("address2") ?? ""}
+          onPostcodeChange={(value) => setValue("postcode", value, { shouldValidate: true, shouldDirty: true })}
+          onAddress1Change={(value) => setValue("address1", value, { shouldValidate: true, shouldDirty: true })}
+          onAddress2Change={(value) => setValue("address2", value, { shouldValidate: true, shouldDirty: true })}
+          errors={{
+            postcode: errors.postcode?.message,
+            address1: errors.address1?.message,
+            address2: errors.address2?.message,
+          }}
+          disabled={isSubmitting}
+        />
         <label className="flex items-start gap-2 text-sm text-foreground">
           <input type="checkbox" className="mt-1 h-4 w-4" {...register("termsAgreed")} />
           <span>이용약관에 동의합니다.</span>
