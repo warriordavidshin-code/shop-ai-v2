@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DaumPostcodeFields } from "@/components/address/DaumPostcodeFields";
+import { PRIVACY_POLICY, TERMS_OF_SERVICE } from "@/content/legal";
 import { ApiError, signup } from "@/features/auth/api";
 import { signupSchema, type SignupValues } from "@/features/auth/schemas";
 
@@ -139,20 +140,38 @@ export function SignupForm() {
           }}
           disabled={isSubmitting}
         />
-        <label className="flex items-start gap-2 text-sm text-foreground">
-          <input type="checkbox" className="mt-1 h-4 w-4" {...register("termsAgreed")} />
-          <span>이용약관에 동의합니다.</span>
-        </label>
-        {errors.termsAgreed ? (
-          <p className="text-sm text-danger">{errors.termsAgreed.message}</p>
-        ) : null}
-        <label className="flex items-start gap-2 text-sm text-foreground">
-          <input type="checkbox" className="mt-1 h-4 w-4" {...register("privacyAgreed")} />
-          <span>개인정보 수집·이용에 동의합니다.</span>
-        </label>
-        {errors.privacyAgreed ? (
-          <p className="text-sm text-danger">{errors.privacyAgreed.message}</p>
-        ) : null}
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-foreground">이용약관</span>
+          <textarea
+            readOnly
+            value={TERMS_OF_SERVICE}
+            rows={8}
+            className="w-full resize-y rounded-xl border border-border bg-surface-soft px-3 py-2 text-xs leading-5 text-foreground"
+          />
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input type="checkbox" className="mt-1 h-4 w-4" {...register("termsAgreed")} />
+            <span>이용약관에 동의합니다.</span>
+          </label>
+          {errors.termsAgreed ? (
+            <p className="text-sm text-danger">{errors.termsAgreed.message}</p>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-foreground">개인정보 처리방침</span>
+          <textarea
+            readOnly
+            value={PRIVACY_POLICY}
+            rows={8}
+            className="w-full resize-y rounded-xl border border-border bg-surface-soft px-3 py-2 text-xs leading-5 text-foreground"
+          />
+          <label className="flex items-start gap-2 text-sm text-foreground">
+            <input type="checkbox" className="mt-1 h-4 w-4" {...register("privacyAgreed")} />
+            <span>개인정보 수집·이용에 동의합니다.</span>
+          </label>
+          {errors.privacyAgreed ? (
+            <p className="text-sm text-danger">{errors.privacyAgreed.message}</p>
+          ) : null}
+        </div>
       </section>
 
       {formError ? (

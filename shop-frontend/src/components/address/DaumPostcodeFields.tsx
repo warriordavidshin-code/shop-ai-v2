@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
-import { loadDaumPostcode, type DaumPostcodeData } from "@/lib/daum-postcode";
+import { useEffect, useRef, useState } from "react";
+import { loadDaumPostcode, selectedAddress } from "@/lib/daum-postcode";
 
 const inputClass =
   "h-11 w-full rounded-xl border border-border bg-surface px-3 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-brand";
@@ -21,23 +21,6 @@ type Props = {
   disabled?: boolean;
 };
 
-function selectedAddress(data: DaumPostcodeData): string {
-  const addr = data.userSelectedType === "R" ? data.roadAddress : data.jibunAddress;
-  let extraAddr = "";
-  if (data.userSelectedType === "R") {
-    if (data.bname !== "" && /[동|로|가]$/g.test(data.bname)) {
-      extraAddr += data.bname;
-    }
-    if (data.buildingName !== "" && data.apartment === "Y") {
-      extraAddr += extraAddr !== "" ? `, ${data.buildingName}` : data.buildingName;
-    }
-    if (extraAddr !== "") {
-      extraAddr = ` (${extraAddr})`;
-    }
-  }
-  return addr + extraAddr;
-}
-
 export function DaumPostcodeFields({
   postcode,
   address1,
@@ -49,22 +32,53 @@ export function DaumPostcodeFields({
   disabled,
 }: Props) {
   const address2Ref = useRef<HTMLInputElement>(null);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const onPostcodeChangeRef = useRef(onPostcodeChange);
+  const onAddress1ChangeRef = useRef(onAddress1Change);
+  const [open, setOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  async function openPostcode() {
-    if (disabled) return;
-    try {
-      const Postcode = await loadDaumPostcode();
-      new Postcode({
-        oncomplete(data) {
-          onPostcodeChange(data.zonecode);
-          onAddress1Change(selectedAddress(data));
-          window.setTimeout(() => address2Ref.current?.focus(), 0);
-        },
-      }).open();
-    } catch {
-      window.alert("우편번호 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+  onPostcodeChangeRef.current = onPostcodeChange;
+  onAddress1ChangeRef.current = onAddress1Change;
+
+  useEffect(() => {
+    if (!open) {
+      return;
     }
-  }
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const Postcode = await loadDaumPostcode();
+        if (cancelled || !layerRef.current) {
+          return;
+        }
+        layerRef.current.replaceChildren();
+        new Postcode({
+          oncomplete(data) {
+            onPostcodeChangeRef.current(data.zonecode);
+            onAddress1ChangeRef.current(selectedAddress(data));
+            setOpen(false);
+            window.setTimeout(() => address2Ref.current?.focus(), 0);
+          },
+          onclose() {
+            setOpen(false);
+          },
+          width: "100%",
+          height: "100%",
+        }).embed(layerRef.current);
+      } catch {
+        if (!cancelled) {
+          setLoadError("우편번호 서비스를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+          setOpen(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,7 +95,10 @@ export function DaumPostcodeFields({
           />
           <button
             type="button"
-            onClick={() => void openPostcode()}
+            onClick={() => {
+              setLoadError(null);
+              setOpen(true);
+            }}
             disabled={disabled}
             className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-medium text-foreground hover:bg-surface-soft disabled:opacity-60"
           >
@@ -89,6 +106,7 @@ export function DaumPostcodeFields({
           </button>
         </div>
         {errors?.postcode ? <p className="text-sm text-danger">{errors.postcode}</p> : null}
+        {loadError ? <p className="text-sm text-danger">{loadError}</p> : null}
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-medium text-foreground">기본주소</span>
@@ -115,6 +133,31 @@ export function DaumPostcodeFields({
         />
         {errors?.address2 ? <p className="text-sm text-danger">{errors.address2}</p> : null}
       </div>
+
+      {open ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="우편번호 검색"
+        >
+          <div className="flex h-[min(520px,90vh)] w-full max-w-[500px] flex-col overflow-hidden rounded-xl bg-surface shadow-lg">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <h3 className="text-sm font-semibold">우편번호 찾기</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-2 py-1 text-sm text-muted-foreground hover:bg-surface-soft"
+              >
+                닫기
+              </button>
+            </div>
+            <div ref={layerRef} className="min-h-0 flex-1 bg-white">
+              <p className="p-4 text-sm text-muted-foreground">우편번호 서비스를 불러오는 중...</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
