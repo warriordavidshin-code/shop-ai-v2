@@ -15,7 +15,6 @@ export function RichTextEditor({ value, onChange }: Props) {
     (async () => {
       const [{ CKEditor }, { ClassicEditor, Essentials, Bold, Italic, Paragraph, Heading, List, Link, BlockQuote }] =
         await Promise.all([import("@ckeditor/ckeditor5-react"), import("ckeditor5")]);
-      await import("ckeditor5/ckeditor5.css");
 
       function BoundEditor({ value: html, onChange: setHtml }: Props) {
         return (
