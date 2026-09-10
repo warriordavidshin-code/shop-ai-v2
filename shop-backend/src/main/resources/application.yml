@@ -1,3 +1,9 @@
+# Unified DB credential source for docker-compose.yml:
+#   DB_NAME / DB_USER / DB_PASSWORD
+#
+# Local non-Docker runs (mvn spring-boot:run) still use DB_URL defaults below
+# pointing at localhost.
+
 spring:
   application:
     name: shop-backend
@@ -29,6 +35,9 @@ management:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      show-details: never
 
 app:
   jwt:
@@ -52,8 +61,5 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-# Log4j2 config: classpath:log4j2-spring.xml
-# Files: shop-ai-v2/log/shop-backend.log (daily: shop-backend-yyyy-MM-dd.log)
-# Override directory with env LOG_DIR
 logging:
   config: classpath:log4j2-spring.xml
