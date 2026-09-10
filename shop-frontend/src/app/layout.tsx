@@ -18,7 +18,7 @@ export default function RootLayout({
       <body className="antialiased">
         <Script
           id="daum-postcode-script"
-          src="https://t1.daumcdn.net/mapjsapi/postcode/prod/postcode.v2.js"
+          src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"
           strategy="afterInteractive"
         />
         {children}

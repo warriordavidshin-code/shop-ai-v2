@@ -1,5 +1,5 @@
 const DAUM_POSTCODE_SCRIPT =
-  "https://t1.daumcdn.net/mapjsapi/postcode/prod/postcode.v2.js";
+  "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
 const DAUM_POSTCODE_SCRIPT_ID = "daum-postcode-script";
 
 export type DaumPostcodeData = {
