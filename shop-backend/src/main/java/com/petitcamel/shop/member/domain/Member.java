@@ -28,30 +28,40 @@ public class Member {
     @Column(name = "email", unique = true, length = 255)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "birth_date", nullable = false)
+    @Column(name = "birth_date")
     private LocalDate birthDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "gender", nullable = false, length = 32)
+    @Column(name = "gender", length = 32)
     private Gender gender;
 
-    @Column(name = "phone", nullable = false, length = 32)
+    @Column(name = "phone", length = 32)
     private String phone;
 
-    @Column(name = "postcode", nullable = false, length = 16)
+    @Column(name = "postcode", length = 16)
     private String postcode;
 
-    @Column(name = "address1", nullable = false, length = 255)
+    @Column(name = "address1", length = 255)
     private String address1;
 
     @Column(name = "address2", length = 255)
     private String address2;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_provider", nullable = false, length = 32)
+    private AuthProvider authProvider = AuthProvider.LOCAL;
+
+    @Column(name = "provider_user_id", length = 128)
+    private String providerUserId;
+
+    @Column(name = "profile_image_url", length = 512)
+    private String profileImageUrl;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 32)
@@ -160,6 +170,30 @@ public class Member {
 
     public void setAddress2(String address2) {
         this.address2 = address2;
+    }
+
+    public AuthProvider getAuthProvider() {
+        return authProvider;
+    }
+
+    public void setAuthProvider(AuthProvider authProvider) {
+        this.authProvider = authProvider;
+    }
+
+    public String getProviderUserId() {
+        return providerUserId;
+    }
+
+    public void setProviderUserId(String providerUserId) {
+        this.providerUserId = providerUserId;
+    }
+
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
     public MemberRole getRole() {

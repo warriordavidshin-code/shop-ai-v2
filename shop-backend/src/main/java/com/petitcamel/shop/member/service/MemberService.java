@@ -6,6 +6,7 @@ import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.service.AuditLogService;
 import com.petitcamel.shop.common.util.AgeCalculator;
+import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Member;
 import com.petitcamel.shop.member.domain.MemberStatus;
 import com.petitcamel.shop.member.dto.MemberResponse;
@@ -115,6 +116,11 @@ public class MemberService {
     @Transactional
     public void changePassword(Long memberId, PasswordChangeRequest request) {
         Member member = requireMember(memberId);
+        if (member.getPasswordHash() == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.");
+        }
         if (!passwordEncoder.matches(request.currentPassword(), member.getPasswordHash())) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "현재 비밀번호가 올바르지 않습니다.");
         }
@@ -124,19 +130,22 @@ public class MemberService {
     }
 
     public MemberResponse toResponse(Member member) {
+        Integer age = member.getBirthDate() == null ? null : ageCalculator.ageInYears(member.getBirthDate());
         return new MemberResponse(
                 member.getMemberId(),
                 member.getLoginId(),
                 member.getEmail(),
                 member.getName(),
                 member.getBirthDate(),
-                ageCalculator.ageInYears(member.getBirthDate()),
+                age,
                 member.getGender(),
                 member.getPhone(),
                 member.getPostcode(),
                 member.getAddress1(),
                 member.getAddress2(),
-                member.getRole());
+                member.getRole(),
+                member.getAuthProvider() == null ? AuthProvider.LOCAL : member.getAuthProvider(),
+                member.getProfileImageUrl());
     }
 
     public AdminMemberResponse toAdminResponse(Member member) {

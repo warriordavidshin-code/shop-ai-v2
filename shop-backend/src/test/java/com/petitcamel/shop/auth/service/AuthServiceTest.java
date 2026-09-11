@@ -4,6 +4,7 @@ import com.petitcamel.shop.auth.dto.LoginRequest;
 import com.petitcamel.shop.auth.dto.SignupRequest;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
+import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Gender;
 import com.petitcamel.shop.member.domain.Member;
 import com.petitcamel.shop.member.domain.MemberRole;
@@ -88,7 +89,8 @@ class AuthServiceTest {
         when(refreshTokenService.issue(10L)).thenReturn("refresh");
         when(memberService.toResponse(any(Member.class))).thenReturn(
                 new MemberResponse(10L, "cameluser", "user@example.com", "홍길동", LocalDate.of(1990, 1, 1),
-                        36, Gender.FEMALE, "01012345678", "30100", "세종", null, MemberRole.CUSTOMER));
+                        36, Gender.FEMALE, "01012345678", "30100", "세종", null, MemberRole.CUSTOMER,
+                        AuthProvider.LOCAL, null));
 
         AuthService.AuthResult result = authService.signup(request);
 

@@ -37,6 +37,10 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
   for (const value of setCookie) {
     responseHeaders.append("set-cookie", value);
   }
+  const location = backendResponse.headers.get("location");
+  if (location) {
+    responseHeaders.set("location", location);
+  }
   const responseContentType = backendResponse.headers.get("content-type");
   if (responseContentType) {
     responseHeaders.set("content-type", responseContentType);

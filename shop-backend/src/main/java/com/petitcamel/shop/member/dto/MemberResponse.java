@@ -1,5 +1,6 @@
 package com.petitcamel.shop.member.dto;
 
+import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Gender;
 import com.petitcamel.shop.member.domain.MemberRole;
 
@@ -11,12 +12,14 @@ public record MemberResponse(
         String email,
         String name,
         LocalDate birthDate,
-        int age,
+        Integer age,
         Gender gender,
         String phone,
         String postcode,
         String address1,
         String address2,
-        MemberRole role
+        MemberRole role,
+        AuthProvider authProvider,
+        String profileImageUrl
 ) {
 }

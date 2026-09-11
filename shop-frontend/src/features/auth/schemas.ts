@@ -5,14 +5,16 @@ export const memberSchema = z.object({
   loginId: z.string(),
   email: z.string().email().nullable().optional(),
   name: z.string(),
-  birthDate: z.string(),
-  age: z.number().int().nonnegative(),
-  gender: z.enum(["FEMALE", "MALE", "OTHER", "PREFER_NOT_TO_SAY"]),
-  phone: z.string(),
-  postcode: z.string(),
-  address1: z.string(),
+  birthDate: z.string().nullable().optional(),
+  age: z.number().int().nonnegative().nullable().optional(),
+  gender: z.enum(["FEMALE", "MALE", "OTHER", "PREFER_NOT_TO_SAY"]).nullable().optional(),
+  phone: z.string().nullable().optional(),
+  postcode: z.string().nullable().optional(),
+  address1: z.string().nullable().optional(),
   address2: z.string().nullable().optional(),
   role: z.enum(["CUSTOMER", "ADMIN"]),
+  authProvider: z.enum(["LOCAL", "KAKAO", "NAVER"]).optional(),
+  profileImageUrl: z.string().nullable().optional(),
 });
 
 export type Member = z.infer<typeof memberSchema>;

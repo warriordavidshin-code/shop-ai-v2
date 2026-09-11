@@ -1,5 +1,6 @@
 package com.petitcamel.shop.member.repository;
 
+import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Member;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     Optional<Member> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    Optional<Member> findByAuthProviderAndProviderUserId(AuthProvider authProvider, String providerUserId);
 
     Page<Member> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

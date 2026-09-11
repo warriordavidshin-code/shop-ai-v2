@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { DaumPostcodeFields } from "@/components/address/DaumPostcodeFields";
+import { SocialLoginButtons } from "@/components/auth/SocialLoginButtons";
 import { PRIVACY_POLICY, TERMS_OF_SERVICE } from "@/content/legal";
 import { ApiError, signup } from "@/features/auth/api";
 import { signupSchema, type SignupValues } from "@/features/auth/schemas";
@@ -73,6 +74,7 @@ export function SignupForm() {
   });
 
   return (
+    <div className="flex flex-col gap-8">
     <form onSubmit={onSubmit} className="flex w-full flex-col gap-8" noValidate>
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-foreground">계정 정보</h2>
@@ -91,10 +93,10 @@ export function SignupForm() {
             {...register("email")}
           />
         </Field>
-        <Field label="비밀번호 (특수문자 포함)" error={errors.password?.message}>
+        <Field label="비밀번호" error={errors.password?.message}>
           <input type="password" autoComplete="new-password" className={inputClass} {...register("password")} />
         </Field>
-        <Field label="비밀번호 확인 (특수문자 포함)" error={errors.passwordConfirm?.message}>
+        <Field label="비밀번호 확인" error={errors.passwordConfirm?.message}>
           <input type="password" autoComplete="new-password" className={inputClass} {...register("passwordConfirm")} />
         </Field>
       </section>
@@ -194,6 +196,8 @@ export function SignupForm() {
         </Link>
       </p>
     </form>
+    <SocialLoginButtons redirect="/mypage" />
+    </div>
   );
 }
 

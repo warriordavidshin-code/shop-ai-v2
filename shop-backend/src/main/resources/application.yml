@@ -46,6 +46,18 @@ app:
     refresh-token-seconds: ${JWT_REFRESH_TOKEN_SECONDS:1209600}
   cookie:
     secure: ${COOKIE_SECURE:false}
+  oauth:
+    frontend-url: ${FRONTEND_URL:http://localhost:3000}
+    # Prefer Next.js BFF so Set-Cookie attaches to the shop origin.
+    public-callback-base: ${OAUTH_PUBLIC_CALLBACK_BASE:http://localhost:3000/api/shop}
+    kakao:
+      enabled: ${KAKAO_ENABLED:false}
+      client-id: ${KAKAO_CLIENT_ID:}
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+    naver:
+      enabled: ${NAVER_ENABLED:false}
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
   ai:
     provider: ${AI_PROVIDER:rule}
     openai:

@@ -4,6 +4,7 @@ import com.petitcamel.shop.auth.dto.LoginRequest;
 import com.petitcamel.shop.auth.dto.SignupRequest;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
+import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Member;
 import com.petitcamel.shop.member.domain.MemberRole;
 import com.petitcamel.shop.member.domain.MemberStatus;
@@ -74,8 +75,11 @@ public class AuthService {
         member.setPostcode(request.postcode().trim());
         member.setAddress1(request.address1().trim());
         member.setAddress2(request.address2() == null ? null : request.address2().trim());
+        member.setAuthProvider(AuthProvider.LOCAL);
+        member.setProviderUserId(null);
         member.setRole(MemberRole.CUSTOMER);
         member.setStatus(MemberStatus.ACTIVE);
+        member.setLastLoginAt(now);
         member.setCreatedAt(now);
         member.setUpdatedAt(now);
         Member saved = memberRepository.save(member);
@@ -92,22 +96,30 @@ public class AuthService {
                     return new BusinessException(ErrorCode.UNAUTHORIZED, LOGIN_FAILURE_MESSAGE);
                 });
 
-        if (!passwordEncoder.matches(request.password(), member.getPasswordHash())) {
+        if (member.getPasswordHash() == null
+                || !passwordEncoder.matches(request.password(), member.getPasswordHash())) {
             log.warn("Login failed: bad password memberId={}", member.getMemberId());
             throw new BusinessException(ErrorCode.UNAUTHORIZED, LOGIN_FAILURE_MESSAGE);
         }
 
-        if (member.getStatus() == MemberStatus.BLOCKED || member.getStatus() == MemberStatus.WITHDRAWN) {
-            log.warn("Login blocked memberId={} status={}", member.getMemberId(), member.getStatus());
-            throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
-        }
+        return completeAuthenticatedSession(member);
+    }
 
-        member.setLastLoginAt(clock.instant());
-        member.setUpdatedAt(clock.instant());
+    /**
+     * Shared session issuance for local login/signup and social OAuth callbacks.
+     */
+    @Transactional
+    public AuthResult completeAuthenticatedSession(Member member) {
+        assertMemberActive(member);
+        Instant now = clock.instant();
+        member.setLastLoginAt(now);
+        member.setUpdatedAt(now);
         memberRepository.save(member);
-        log.info("Login success memberId={} role={}", member.getMemberId(), member.getRole());
+        log.info(
+                "Auth session issued memberId={} provider={} role={}",
+                member.getMemberId(),
+                member.getAuthProvider(),
+                member.getRole());
         return issueTokens(member);
     }
 
@@ -115,13 +127,7 @@ public class AuthService {
     public AuthResult refresh(String rawRefreshToken) {
         RefreshTokenService.RotatedTokens rotated = refreshTokenService.rotate(rawRefreshToken);
         Member member = memberService.requireMember(rotated.memberId());
-        if (member.getStatus() == MemberStatus.BLOCKED || member.getStatus() == MemberStatus.WITHDRAWN) {
-            refreshTokenService.revoke(rotated.rawRefreshToken());
-            log.warn("Refresh rejected memberId={} status={}", member.getMemberId(), member.getStatus());
-            throw new BusinessException(
-                    ErrorCode.FORBIDDEN,
-                    "이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
-        }
+        assertMemberActive(member);
         String accessToken = jwtService.createAccessToken(
                 member.getMemberId(), member.getLoginId(), member.getRole());
         log.info("Refresh token rotated memberId={}", member.getMemberId());
@@ -132,6 +138,15 @@ public class AuthService {
     public void logout(String rawRefreshToken) {
         refreshTokenService.revoke(rawRefreshToken);
         log.info("Logout completed (refresh revoked)");
+    }
+
+    private void assertMemberActive(Member member) {
+        if (member.getStatus() == MemberStatus.BLOCKED || member.getStatus() == MemberStatus.WITHDRAWN) {
+            log.warn("Auth blocked memberId={} status={}", member.getMemberId(), member.getStatus());
+            throw new BusinessException(
+                    ErrorCode.FORBIDDEN,
+                    "이용이 제한된 계정입니다. 고객센터에 문의해 주세요.");
+        }
     }
 
     private AuthResult issueTokens(Member member) {

@@ -17,7 +17,7 @@ public class AgeCalculator {
 
     public int ageInYears(LocalDate birthDate) {
         if (birthDate == null) {
-            throw new IllegalArgumentException("birthDate must not be null");
+            return 0;
         }
         return Period.between(birthDate, LocalDate.now(clock)).getYears();
     }

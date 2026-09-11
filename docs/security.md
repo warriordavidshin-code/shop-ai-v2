@@ -8,3 +8,4 @@
 - Mask PII in logs (phone, address, tokens)
 - No stack traces in API responses
 - `.env` and secrets in `.gitignore`
+- Social login (Kakao/Naver): exchange authorization codes only on the backend; validate OAuth `state`; never expose provider tokens to the browser; do not auto-link LOCAL and social accounts by email

@@ -41,9 +41,9 @@ export function CheckoutClient() {
           setForm((prev) => ({
             ...prev,
             receiverName: me.name,
-            receiverPhone: me.phone,
-            postcode: me.postcode,
-            address1: me.address1,
+            receiverPhone: me.phone ?? "",
+            postcode: me.postcode ?? "",
+            address1: me.address1 ?? "",
             address2: me.address2 ?? "",
           }));
         }

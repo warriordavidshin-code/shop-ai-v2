@@ -1,5 +1,6 @@
 package com.petitcamel.shop.security;
 
+import com.petitcamel.shop.auth.oauth.OAuthProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petitcamel.shop.common.dto.ErrorResponse;
 import com.petitcamel.shop.common.exception.ErrorCode;
@@ -28,7 +29,7 @@ import java.time.Instant;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, OAuthProperties.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -63,6 +64,12 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/auth/logout"
+                        ).permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/auth/kakao/login",
+                                "/api/auth/kakao/callback",
+                                "/api/auth/naver/login",
+                                "/api/auth/naver/callback"
                         ).permitAll()
                         .requestMatchers(
                                 "/api/health",
