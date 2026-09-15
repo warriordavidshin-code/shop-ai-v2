@@ -170,8 +170,10 @@ export function LoginForm() {
           <button
             type="button"
             className="text-brand hover:underline"
+            aria-label="비밀번호 찾기"
             onClick={() => {
               setResetError(null);
+              setSuccessMessage(null);
               setShowReset(true);
             }}
           >
