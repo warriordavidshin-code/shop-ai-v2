@@ -3,6 +3,8 @@
 BoutiqueCamel keeps the existing email/password JWT cookie auth and adds Kakao + Naver OAuth
 as additional sign-up/login paths. Provider tokens never reach the browser.
 
+Production shop domain: **https://btc-camel.com**
+
 ## Flow
 
 1. Browser opens `GET /api/shop/auth/{kakao|naver}/login` (Next.js BFF → backend)
@@ -12,6 +14,13 @@ as additional sign-up/login paths. Provider tokens never reach the browser.
    `(auth_provider, provider_user_id)`, issues the same JWT + refresh cookies, redirects to the shop UI
 
 Use the **frontend BFF URL** as `OAUTH_PUBLIC_CALLBACK_BASE` so `Set-Cookie` attaches to the shop origin:
+
+```text
+OAUTH_PUBLIC_CALLBACK_BASE=https://btc-camel.com/api/shop
+FRONTEND_URL=https://btc-camel.com
+```
+
+Local development override:
 
 ```text
 OAUTH_PUBLIC_CALLBACK_BASE=http://localhost:3000/api/shop
@@ -33,10 +42,10 @@ Email collision with an existing LOCAL account does **not** auto-link. The socia
 
 1. Create an app at [Kakao Developers](https://developers.kakao.com/)
 2. Enable Kakao Login
-3. Redirect URI (example local):
+3. Redirect URI (production):
 
 ```text
-http://localhost:3000/api/shop/auth/kakao/callback
+https://btc-camel.com/api/shop/auth/kakao/callback
 ```
 
 4. Copy REST API key → `KAKAO_CLIENT_ID`
@@ -49,10 +58,10 @@ Consent items typically needed: profile nickname/image, account email (optional)
 
 1. Create an app at [Naver Developers](https://developers.naver.com/)
 2. Add Login Open API
-3. Callback URL (example local):
+3. Callback URL (production):
 
 ```text
-http://localhost:3000/api/shop/auth/naver/callback
+https://btc-camel.com/api/shop/auth/naver/callback
 ```
 
 4. Copy Client ID / Secret → `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`
@@ -61,18 +70,16 @@ http://localhost:3000/api/shop/auth/naver/callback
 ## Environment
 
 ```env
-FRONTEND_URL=http://localhost:3000
-OAUTH_PUBLIC_CALLBACK_BASE=http://localhost:3000/api/shop
+FRONTEND_URL=https://btc-camel.com
+OAUTH_PUBLIC_CALLBACK_BASE=https://btc-camel.com/api/shop
 KAKAO_ENABLED=true
 KAKAO_CLIENT_ID=...
 KAKAO_CLIENT_SECRET=...
 NAVER_ENABLED=true
 NAVER_CLIENT_ID=...
 NAVER_CLIENT_SECRET=...
+COOKIE_SECURE=true
 ```
-
-Production: use HTTPS shop origin for both `FRONTEND_URL` and `OAUTH_PUBLIC_CALLBACK_BASE`,
-register the same callback URLs in each developer console, and set `COOKIE_SECURE=true`.
 
 ## Security notes
 

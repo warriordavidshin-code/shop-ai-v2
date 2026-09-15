@@ -26,6 +26,13 @@ export const loginSchema = z.object({
 
 export type LoginValues = z.infer<typeof loginSchema>;
 
+export const passwordResetSchema = z.object({
+  loginId: z.string().min(1, "아이디를 입력해 주세요."),
+  name: z.string().min(1, "이름을 입력해 주세요."),
+});
+
+export type PasswordResetValues = z.infer<typeof passwordResetSchema>;
+
 const loginIdSchema = z
   .string()
   .regex(
@@ -33,18 +40,16 @@ const loginIdSchema = z
     "아이디는 영문으로 시작해 4~20자의 영문, 숫자, 밑줄만 사용할 수 있습니다.",
   );
 
+export const PASSWORD_POLICY_HINT =
+  "영문, 숫자, 특수문자를 포함해 8자 이상이어야 합니다.";
+
 export const signupSchema = z
   .object({
     loginId: loginIdSchema,
-    email: z
-      .string()
-      .trim()
-      .refine((value) => value.length === 0 || z.string().email().safeParse(value).success, {
-        message: "올바른 이메일 형식이 아닙니다.",
-      }),
+    email: z.string().trim().email("올바른 이메일 형식이 아닙니다."),
     password: z
       .string()
-      .min(10, "비밀번호는 최소 10자여야 합니다.")
+      .min(8, "비밀번호는 최소 8자여야 합니다.")
       .regex(/[A-Za-z]/, "영문을 포함해야 합니다.")
       .regex(/[0-9]/, "숫자를 포함해야 합니다.")
       .regex(/[^A-Za-z0-9]/, "특수문자를 포함해야 합니다."),

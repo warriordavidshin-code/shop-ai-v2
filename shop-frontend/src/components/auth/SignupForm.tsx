@@ -85,7 +85,11 @@ export function SignupForm() {
             {...register("loginId")}
           />
         </Field>
-        <Field label="이메일 (선택)" error={errors.email?.message}>
+        <Field
+          label="이메일"
+          error={errors.email?.message}
+          hint="비밀번호 찾기 시 임시 비밀번호가 이 이메일로 발송됩니다. 정확히 입력해 주세요."
+        >
           <input
             type="email"
             autoComplete="email"
@@ -93,10 +97,18 @@ export function SignupForm() {
             {...register("email")}
           />
         </Field>
-        <Field label="비밀번호" error={errors.password?.message}>
+        <Field
+          label="비밀번호"
+          error={errors.password?.message}
+          hint="영문, 숫자, 특수문자를 포함해 최소 8자 이상"
+        >
           <input type="password" autoComplete="new-password" className={inputClass} {...register("password")} />
         </Field>
-        <Field label="비밀번호 확인" error={errors.passwordConfirm?.message}>
+        <Field
+          label="비밀번호 확인"
+          error={errors.passwordConfirm?.message}
+          hint="영문, 숫자, 특수문자를 포함해 최소 8자 이상"
+        >
           <input type="password" autoComplete="new-password" className={inputClass} {...register("passwordConfirm")} />
         </Field>
       </section>

@@ -1,6 +1,8 @@
 package com.petitcamel.shop.auth.controller;
 
 import com.petitcamel.shop.auth.dto.LoginRequest;
+import com.petitcamel.shop.auth.dto.PasswordResetRequest;
+import com.petitcamel.shop.auth.dto.PasswordResetResponse;
 import com.petitcamel.shop.auth.dto.SignupRequest;
 import com.petitcamel.shop.auth.service.AuthService;
 import com.petitcamel.shop.member.dto.MemberResponse;
@@ -43,6 +45,12 @@ public class AuthController {
         AuthService.AuthResult result = authService.login(request);
         authCookieService.writeAuthCookies(response, result.accessToken(), result.refreshToken());
         return ResponseEntity.ok(result.member());
+    }
+
+    @PostMapping("/password-reset")
+    public ResponseEntity<PasswordResetResponse> passwordReset(
+            @Valid @RequestBody PasswordResetRequest request) {
+        return ResponseEntity.ok(authService.resetPassword(request));
     }
 
     @PostMapping("/refresh")

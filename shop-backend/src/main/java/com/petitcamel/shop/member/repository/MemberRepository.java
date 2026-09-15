@@ -20,5 +20,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     Optional<Member> findByAuthProviderAndProviderUserId(AuthProvider authProvider, String providerUserId);
 
+    Optional<Member> findByLoginIdAndName(String loginId, String name);
+
     Page<Member> findAllByOrderByCreatedAtDesc(Pageable pageable);
 }

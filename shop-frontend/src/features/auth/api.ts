@@ -69,7 +69,7 @@ export async function login(values: LoginValues): Promise<Member> {
 export async function signup(values: SignupValues): Promise<Member> {
   const payload = {
     loginId: values.loginId,
-    email: values.email || null,
+    email: values.email,
     password: values.password,
     name: values.name,
     birthDate: values.birthDate,
@@ -89,6 +89,20 @@ export async function signup(values: SignupValues): Promise<Member> {
     throw await parseError(response);
   }
   return memberSchema.parse(await response.json());
+}
+
+export async function resetPassword(values: {
+  loginId: string;
+  name: string;
+}): Promise<{ message: string; maskedEmail: string }> {
+  const response = await shopFetch("/auth/password-reset", {
+    method: "POST",
+    body: JSON.stringify(values),
+  });
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+  return (await response.json()) as { message: string; maskedEmail: string };
 }
 
 export async function logout(): Promise<void> {

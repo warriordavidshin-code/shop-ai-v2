@@ -24,13 +24,23 @@ describe("signupSchema", () => {
     expect(signupSchema.safeParse(valid).success).toBe(true);
   });
 
-  it("accepts signup without email", () => {
-    expect(signupSchema.safeParse({ ...valid, email: "" }).success).toBe(true);
+  it("requires email", () => {
+    const result = signupSchema.safeParse({ ...valid, email: "" });
+    expect(result.success).toBe(false);
   });
 
   it("rejects invalid login id", () => {
     const result = signupSchema.safeParse({ ...valid, loginId: "ab" });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts 8-char strong password", () => {
+    const result = signupSchema.safeParse({
+      ...valid,
+      password: "Abcd123!",
+      passwordConfirm: "Abcd123!",
+    });
+    expect(result.success).toBe(true);
   });
 
   it("rejects weak password", () => {

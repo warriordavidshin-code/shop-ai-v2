@@ -26,6 +26,17 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 20MB
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
 
 server:
   port: 8080
@@ -47,9 +58,9 @@ app:
   cookie:
     secure: ${COOKIE_SECURE:false}
   oauth:
-    frontend-url: ${FRONTEND_URL:http://localhost:3000}
+    frontend-url: ${FRONTEND_URL:https://btc-camel.com}
     # Prefer Next.js BFF so Set-Cookie attaches to the shop origin.
-    public-callback-base: ${OAUTH_PUBLIC_CALLBACK_BASE:http://localhost:3000/api/shop}
+    public-callback-base: ${OAUTH_PUBLIC_CALLBACK_BASE:https://btc-camel.com/api/shop}
     kakao:
       enabled: ${KAKAO_ENABLED:false}
       client-id: ${KAKAO_CLIENT_ID:}
@@ -58,6 +69,9 @@ app:
       enabled: ${NAVER_ENABLED:false}
       client-id: ${NAVER_CLIENT_ID:}
       client-secret: ${NAVER_CLIENT_SECRET:}
+  mail:
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:noreply@btc-camel.com}
   ai:
     provider: ${AI_PROVIDER:rule}
     openai:

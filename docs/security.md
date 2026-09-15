@@ -9,3 +9,5 @@
 - No stack traces in API responses
 - `.env` and secrets in `.gitignore`
 - Social login (Kakao/Naver): exchange authorization codes only on the backend; validate OAuth `state`; never expose provider tokens to the browser; do not auto-link LOCAL and social accounts by email
+- Password reset: match loginId + name, email temporary password, revoke refresh tokens; never log plaintext passwords in production mail logs when SMTP is enabled
+- Production domain: https://btc-camel.com

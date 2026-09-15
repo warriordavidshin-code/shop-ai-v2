@@ -1,6 +1,7 @@
 package com.petitcamel.shop.security;
 
 import com.petitcamel.shop.auth.oauth.OAuthProperties;
+import com.petitcamel.shop.common.mail.MailProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.petitcamel.shop.common.dto.ErrorResponse;
 import com.petitcamel.shop.common.exception.ErrorCode;
@@ -29,7 +30,7 @@ import java.time.Instant;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, OAuthProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, OAuthProperties.class, MailProperties.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -54,6 +55,7 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 "/api/auth/signup",
                                 "/api/auth/login",
+                                "/api/auth/password-reset",
                                 "/api/auth/refresh",
                                 "/api/auth/logout"
                         ))
@@ -62,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/signup",
                                 "/api/auth/login",
+                                "/api/auth/password-reset",
                                 "/api/auth/refresh",
                                 "/api/auth/logout"
                         ).permitAll()

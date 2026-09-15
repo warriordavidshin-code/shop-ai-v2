@@ -1,9 +1,12 @@
 package com.petitcamel.shop.auth.service;
 
 import com.petitcamel.shop.auth.dto.LoginRequest;
+import com.petitcamel.shop.auth.dto.PasswordResetRequest;
+import com.petitcamel.shop.auth.dto.PasswordResetResponse;
 import com.petitcamel.shop.auth.dto.SignupRequest;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
+import com.petitcamel.shop.common.mail.MailService;
 import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Member;
 import com.petitcamel.shop.member.domain.MemberRole;
@@ -18,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
@@ -26,14 +30,17 @@ import java.util.Locale;
 public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     public static final String LOGIN_FAILURE_MESSAGE = "아이디 또는 비밀번호가 올바르지 않습니다.";
+    public static final String PASSWORD_RESET_NOT_FOUND_MESSAGE = "입력하신 아이디와 이름과 일치하는 회원을 찾을 수 없습니다.";
 
     private final MemberRepository memberRepository;
     private final MemberService memberService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final MailService mailService;
     private final Clock clock;
 
     public AuthService(
@@ -42,12 +49,14 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
+            MailService mailService,
             Clock clock) {
         this.memberRepository = memberRepository;
         this.memberService = memberService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.mailService = mailService;
         this.clock = clock;
     }
 
@@ -57,8 +66,11 @@ public class AuthService {
         if (memberRepository.existsByLoginId(loginId)) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 아이디입니다.");
         }
-        String email = request.email() == null ? null : normalizeEmail(request.email());
-        if (email != null && memberRepository.existsByEmail(email)) {
+        if (request.email() == null || request.email().isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "이메일은 필수입니다.");
+        }
+        String email = normalizeEmail(request.email());
+        if (memberRepository.existsByEmail(email)) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 이메일입니다.");
         }
         memberService.validateAgePolicy(request.birthDate());
@@ -103,6 +115,55 @@ public class AuthService {
         }
 
         return completeAuthenticatedSession(member);
+    }
+
+    @Transactional
+    public PasswordResetResponse resetPassword(PasswordResetRequest request) {
+        String loginId = normalizeLoginId(request.loginId());
+        String name = request.name().trim();
+        Member member = memberRepository.findByLoginIdAndName(loginId, name)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, PASSWORD_RESET_NOT_FOUND_MESSAGE));
+
+        assertMemberActive(member);
+
+        if (member.getAuthProvider() != AuthProvider.LOCAL || member.getPasswordHash() == null) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "소셜 로그인 계정은 비밀번호 찾기를 사용할 수 없습니다. 카카오/네이버로 로그인해 주세요.");
+        }
+        if (member.getEmail() == null || member.getEmail().isBlank()) {
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "등록된 이메일이 없어 임시 비밀번호를 발송할 수 없습니다.");
+        }
+
+        String temporaryPassword = generateTemporaryPassword();
+        member.setPasswordHash(passwordEncoder.encode(temporaryPassword));
+        member.setUpdatedAt(clock.instant());
+        memberRepository.save(member);
+        refreshTokenService.revokeAllForMember(member.getMemberId());
+
+        String masked = maskEmail(member.getEmail());
+        mailService.sendPlainText(
+                member.getEmail(),
+                "[BoutiqueCamel] 임시 비밀번호 안내",
+                """
+                안녕하세요, BoutiqueCamel 입니다.
+
+                요청하신 계정(%s)의 임시 비밀번호는 아래와 같습니다.
+
+                임시 비밀번호: %s
+
+                로그인 후 반드시 비밀번호를 변경해 주세요.
+                본인이 요청하지 않았다면 고객센터로 문의해 주세요.
+
+                https://btc-camel.com
+                """.formatted(loginId, temporaryPassword));
+
+        log.info("Temporary password issued memberId={} email={}", member.getMemberId(), masked);
+        return new PasswordResetResponse(
+                "등록된 이메일(" + masked + ")로 임시 비밀번호를 발송했습니다. 로그인 후 비밀번호를 변경해 주세요.",
+                masked);
     }
 
     /**
@@ -156,6 +217,28 @@ public class AuthService {
         return new AuthResult(memberService.toResponse(member), accessToken, refreshToken);
     }
 
+    static String generateTemporaryPassword() {
+        final String letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+        final String digits = "23456789";
+        final String specials = "!@#$%";
+        StringBuilder sb = new StringBuilder(10);
+        sb.append(letters.charAt(SECURE_RANDOM.nextInt(letters.length())));
+        sb.append(digits.charAt(SECURE_RANDOM.nextInt(digits.length())));
+        sb.append(specials.charAt(SECURE_RANDOM.nextInt(specials.length())));
+        String all = letters + digits + specials;
+        for (int i = 0; i < 7; i++) {
+            sb.append(all.charAt(SECURE_RANDOM.nextInt(all.length())));
+        }
+        char[] chars = sb.toString().toCharArray();
+        for (int i = chars.length - 1; i > 0; i--) {
+            int j = SECURE_RANDOM.nextInt(i + 1);
+            char tmp = chars[i];
+            chars[i] = chars[j];
+            chars[j] = tmp;
+        }
+        return new String(chars);
+    }
+
     public static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
@@ -180,6 +263,14 @@ public class AuthService {
             return "***";
         }
         return loginId.charAt(0) + "***";
+    }
+
+    private static String maskEmail(String email) {
+        int at = email.indexOf('@');
+        if (at <= 1) {
+            return "***@" + (at > 0 ? email.substring(at + 1) : "");
+        }
+        return email.charAt(0) + "***@" + email.substring(at + 1);
     }
 
     public record AuthResult(MemberResponse member, String accessToken, String refreshToken) {

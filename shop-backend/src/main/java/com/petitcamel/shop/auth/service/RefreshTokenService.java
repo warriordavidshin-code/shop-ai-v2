@@ -69,6 +69,17 @@ public class RefreshTokenService {
         });
     }
 
+    @Transactional
+    public void revokeAllForMember(Long memberId) {
+        Instant now = clock.instant();
+        for (RefreshToken token : refreshTokenRepository.findByMemberId(memberId)) {
+            if (token.getRevokedAt() == null) {
+                token.setRevokedAt(now);
+                refreshTokenRepository.save(token);
+            }
+        }
+    }
+
     @Transactional(readOnly = true)
     public RefreshToken requireValid(String rawRefreshToken) {
         return findValid(rawRefreshToken);

@@ -4,6 +4,7 @@ import com.petitcamel.shop.auth.dto.LoginRequest;
 import com.petitcamel.shop.auth.dto.SignupRequest;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
+import com.petitcamel.shop.common.mail.MailService;
 import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Gender;
 import com.petitcamel.shop.member.domain.Member;
@@ -51,13 +52,15 @@ class AuthServiceTest {
     JwtService jwtService;
     @Mock
     RefreshTokenService refreshTokenService;
+    @Mock
+    MailService mailService;
 
     AuthService authService;
 
     @BeforeEach
     void setUp() {
         authService = new AuthService(
-                memberRepository, memberService, passwordEncoder, jwtService, refreshTokenService, CLOCK);
+                memberRepository, memberService, passwordEncoder, jwtService, refreshTokenService, mailService, CLOCK);
     }
 
     @Test
@@ -131,5 +134,29 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.login(new LoginRequest("cameluser", "StrongPassword1!")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void resetPasswordIssuesTemporaryPasswordAndMails() {
+        Member member = new Member();
+        member.setMemberId(3L);
+        member.setLoginId("cameluser");
+        member.setName("홍길동");
+        member.setEmail("user@example.com");
+        member.setPasswordHash("old-hash");
+        member.setAuthProvider(AuthProvider.LOCAL);
+        member.setStatus(MemberStatus.ACTIVE);
+
+        when(memberRepository.findByLoginIdAndName("cameluser", "홍길동")).thenReturn(Optional.of(member));
+        when(passwordEncoder.encode(any())).thenReturn("temp-hash");
+
+        var response = authService.resetPassword(
+                new com.petitcamel.shop.auth.dto.PasswordResetRequest("CamelUser", "홍길동"));
+
+        assertThat(response.maskedEmail()).contains("@example.com");
+        verify(mailService).sendPlainText(eq("user@example.com"), any(), any());
+        verify(refreshTokenService).revokeAllForMember(3L);
+        verify(memberRepository).save(member);
+        assertThat(member.getPasswordHash()).isEqualTo("temp-hash");
     }
 }

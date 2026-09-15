@@ -4,6 +4,7 @@ import "./globals.css";
 import "ckeditor5/ckeditor5.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://btc-camel.com"),
   title: "BoutiqueCamel",
   description: "쁘띠카멜 — 편안한 데일리룩과 특별한 날의 코디",
 };
