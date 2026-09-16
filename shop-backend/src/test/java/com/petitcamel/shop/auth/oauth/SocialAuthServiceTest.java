@@ -1,6 +1,8 @@
 package com.petitcamel.shop.auth.oauth;
 
 import com.petitcamel.shop.auth.service.AuthService;
+import com.petitcamel.shop.common.exception.BusinessException;
+import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.member.domain.AuthProvider;
 import com.petitcamel.shop.member.domain.Gender;
 import com.petitcamel.shop.member.domain.Member;
@@ -21,7 +23,9 @@ import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,19 +47,21 @@ class SocialAuthServiceTest {
     }
 
     @Test
-    void createsKakaoMemberWhenUnknownAndDoesNotLinkExistingEmail() {
+    void createsKakaoMemberWithConsentProfileFields() {
         SocialProfile profile = new SocialProfile(
                 AuthProvider.KAKAO,
                 "12345",
-                "taken@example.com",
-                "카카오닉",
+                "user@example.com",
+                "홍길동",
                 "https://img.example/a.png",
-                null,
-                Gender.FEMALE);
+                LocalDate.of(1990, 1, 1),
+                Gender.FEMALE,
+                "01012345678",
+                "30~39");
 
         when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
-        when(memberRepository.existsByEmail("taken@example.com")).thenReturn(true);
+        when(memberRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(memberRepository.existsByLoginId(any())).thenReturn(false);
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
             Member m = invocation.getArgument(0);
@@ -64,9 +70,9 @@ class SocialAuthServiceTest {
         });
         when(authService.completeAuthenticatedSession(any(Member.class))).thenReturn(
                 new AuthService.AuthResult(
-                        new MemberResponse(77L, "kakao_abc", null, "카카오닉", null, null, Gender.FEMALE,
-                                null, null, null, null, MemberRole.CUSTOMER, AuthProvider.KAKAO,
-                                "https://img.example/a.png"),
+                        new MemberResponse(77L, "kakao_abc", "user@example.com", "홍길동", LocalDate.of(1990, 1, 1),
+                                36, Gender.FEMALE, "01012345678", null, null, null, MemberRole.CUSTOMER,
+                                AuthProvider.KAKAO, "https://img.example/a.png"),
                         "access",
                         "refresh"));
 
@@ -78,9 +84,36 @@ class SocialAuthServiceTest {
         Member saved = captor.getValue();
         assertThat(saved.getAuthProvider()).isEqualTo(AuthProvider.KAKAO);
         assertThat(saved.getProviderUserId()).isEqualTo("12345");
-        assertThat(saved.getEmail()).isNull();
+        assertThat(saved.getEmail()).isEqualTo("user@example.com");
+        assertThat(saved.getName()).isEqualTo("홍길동");
+        assertThat(saved.getGender()).isEqualTo(Gender.FEMALE);
+        assertThat(saved.getPhone()).isEqualTo("01012345678");
+        assertThat(saved.getBirthDate()).isEqualTo(LocalDate.of(1990, 1, 1));
         assertThat(saved.getPasswordHash()).isNull();
         assertThat(saved.getLoginId()).startsWith("kakao_");
+    }
+
+    @Test
+    void rejectsKakaoWhenEmailAlreadyRegistered() {
+        SocialProfile profile = new SocialProfile(
+                AuthProvider.KAKAO,
+                "12345",
+                "taken@example.com",
+                "홍길동",
+                null,
+                LocalDate.of(1990, 1, 1),
+                Gender.FEMALE,
+                "01012345678",
+                "30~39");
+
+        when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty());
+        when(memberRepository.existsByEmail("taken@example.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> socialAuthService.loginOrSignup(profile))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode()).isEqualTo(ErrorCode.CONFLICT));
+        verify(memberRepository, never()).save(any());
     }
 
     @Test
@@ -99,7 +132,9 @@ class SocialAuthServiceTest {
                 "네이버",
                 null,
                 LocalDate.of(1995, 5, 5),
-                Gender.MALE);
+                Gender.MALE,
+                null,
+                null);
 
         when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.NAVER, "nv-1"))
                 .thenReturn(Optional.of(existing));

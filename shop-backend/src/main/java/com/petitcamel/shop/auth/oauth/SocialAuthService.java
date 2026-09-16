@@ -60,10 +60,14 @@ public class SocialAuthService {
         member.setLoginId(generateLoginId(profile.provider()));
         member.setEmail(resolveEmail(profile));
         member.setPasswordHash(null);
-        member.setName(trimTo(profile.name() == null || profile.name().isBlank() ? defaultName(profile.provider()) : profile.name(), 100));
+        member.setName(trimTo(
+                profile.name() == null || profile.name().isBlank()
+                        ? defaultName(profile.provider())
+                        : profile.name(),
+                100));
         member.setBirthDate(profile.birthDate());
         member.setGender(profile.gender() == null ? Gender.PREFER_NOT_TO_SAY : profile.gender());
-        member.setPhone(null);
+        member.setPhone(trimTo(profile.phone(), 32));
         member.setPostcode(null);
         member.setAddress1(null);
         member.setAddress2(null);
@@ -76,9 +80,10 @@ public class SocialAuthService {
         member.setUpdatedAt(now);
         Member saved = memberRepository.save(member);
         log.info(
-                "Social signup success provider={} memberId={}",
+                "Social signup success provider={} memberId={} ageRange={}",
                 profile.provider(),
-                saved.getMemberId());
+                saved.getMemberId(),
+                profile.ageRange());
         return saved;
     }
 
@@ -99,6 +104,18 @@ public class SocialAuthService {
                 changed = true;
             }
         }
+        if ((member.getPhone() == null || member.getPhone().isBlank()) && profile.phone() != null) {
+            member.setPhone(trimTo(profile.phone(), 32));
+            changed = true;
+        }
+        if (member.getGender() == null && profile.gender() != null) {
+            member.setGender(profile.gender());
+            changed = true;
+        }
+        if (member.getBirthDate() == null && profile.birthDate() != null) {
+            member.setBirthDate(profile.birthDate());
+            changed = true;
+        }
         if (changed) {
             member.setUpdatedAt(clock.instant());
             memberRepository.save(member);
@@ -106,19 +123,22 @@ public class SocialAuthService {
     }
 
     /**
-     * Never auto-link a social account to an existing LOCAL (or other) email identity.
+     * Kakao requires email. Never auto-link to an existing LOCAL/other account email.
      */
     private String resolveEmail(SocialProfile profile) {
         if (profile.email() == null || profile.email().isBlank()) {
+            if (profile.provider() == AuthProvider.KAKAO) {
+                throw new BusinessException(
+                        ErrorCode.BUSINESS_RULE_VIOLATION,
+                        "카카오 이메일 동의가 필요합니다. 동의 후 다시 시도해 주세요.");
+            }
             return null;
         }
         String email = AuthService.normalizeEmail(profile.email());
         if (memberRepository.existsByEmail(email)) {
-            log.info(
-                    "Social email already registered; leaving email unset provider={} email={}",
-                    profile.provider(),
-                    maskEmail(email));
-            return null;
+            throw new BusinessException(
+                    ErrorCode.CONFLICT,
+                    "이미 가입된 이메일입니다. 기존 계정으로 로그인해 주세요.");
         }
         return email;
     }
@@ -157,13 +177,5 @@ public class SocialAuthService {
         }
         String trimmed = value.trim();
         return trimmed.length() <= max ? trimmed : trimmed.substring(0, max);
-    }
-
-    private static String maskEmail(String email) {
-        int at = email.indexOf('@');
-        if (at <= 0) {
-            return "***";
-        }
-        return "***@" + email.substring(at + 1).toLowerCase(Locale.ROOT);
     }
 }

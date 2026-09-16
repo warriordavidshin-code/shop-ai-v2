@@ -36,7 +36,7 @@ FRONTEND_URL=http://localhost:3000
 - profile fields `birth_date`, `gender`, `phone`, `postcode`, `address1` nullable for incomplete social profiles
 - unique index on `(auth_provider, provider_user_id)` where `provider_user_id IS NOT NULL`
 
-Email collision with an existing LOCAL account does **not** auto-link. The social member is created with `email = null`.
+Email collision with an existing account does **not** auto-link; Kakao signup fails with a conflict message.
 
 ## Kakao developers
 
@@ -51,21 +51,23 @@ https://btc-camel.com/api/shop/auth/kakao/callback
 4. Copy REST API key → `KAKAO_CLIENT_ID`
 5. Create client secret → `KAKAO_CLIENT_SECRET`
 6. Set `KAKAO_ENABLED=true`
+7. Kakao Login 동의 항목을 **필수 동의**로 설정하고 앱에서 아래 scope를 요청합니다.
 
-Consent items typically needed: profile nickname/image, account email (optional).
+| 항목 | scope / 필드 | 저장 위치 |
+|---|---|---|
+| 카카오계정(이메일) | `account_email` | `member.email` |
+| 이름 | `name` | `member.name` |
+| 성별 | `gender` | `member.gender` |
+| 연령대 | `age_range` | 가입/갱신 시 참고 (출생연도 보강) |
+| 출생 연도 | `birthyear` (+`birthday`) | `member.birth_date` |
+| 카카오계정(전화번호) | `phone_number` | `member.phone` |
+
+필수 동의 누락 시 콜백에서 가입을 거절하고 안내 메시지를 반환합니다.
+이메일 중복(기존 LOCAL 계정 등)도 자동 병합하지 않고 충돌로 처리합니다.
 
 ## Naver developers
 
-1. Create an app at [Naver Developers](https://developers.naver.com/)
-2. Add Login Open API
-3. Callback URL (production):
-
-```text
-https://btc-camel.com/api/shop/auth/naver/callback
-```
-
-4. Copy Client ID / Secret → `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`
-5. Set `NAVER_ENABLED=true`
+네이버 로그인 API는 백엔드에 유지되지만, 현재 로그인/회원가입 화면 버튼은 비노출(주석 처리)입니다.
 
 ## Environment
 

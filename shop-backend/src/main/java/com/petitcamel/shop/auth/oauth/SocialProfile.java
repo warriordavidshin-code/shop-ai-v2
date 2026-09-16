@@ -12,6 +12,8 @@ public record SocialProfile(
         String name,
         String profileImageUrl,
         LocalDate birthDate,
-        Gender gender
+        Gender gender,
+        String phone,
+        String ageRange
 ) {
 }

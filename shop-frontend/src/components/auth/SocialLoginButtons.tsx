@@ -27,12 +27,14 @@ export function SocialLoginButtons({ redirect }: SocialLoginButtonsProps) {
       >
         카카오로 시작하기
       </a>
+      {/* 네이버 로그인 일시 비노출
       <a
         href={buildSocialUrl("naver", redirect)}
         className="inline-flex h-11 items-center justify-center rounded-xl bg-[#03C75A] px-5 text-sm font-medium text-white transition-opacity hover:opacity-90"
       >
         네이버로 시작하기
       </a>
+      */}
     </div>
   );
 }

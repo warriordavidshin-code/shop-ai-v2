@@ -113,7 +113,7 @@ public class NaverOAuthClient {
                 textOrNull(response, "birthday"));
         Gender gender = mapNaverGender(textOrNull(response, "gender"));
 
-        return new SocialProfile(AuthProvider.NAVER, providerUserId, email, name, image, birthDate, gender);
+        return new SocialProfile(AuthProvider.NAVER, providerUserId, email, name, image, birthDate, gender, null, null);
     }
 
     private void ensureConfigured() {
