@@ -7,6 +7,10 @@
 spring:
   application:
     name: shop-backend
+  autoconfigure:
+    exclude:
+      # Custom MailConfig creates JavaMailSender only when app.mail.enabled=true.
+      - org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/shop_ai}
     username: ${DB_USERNAME:shop_ai}
@@ -49,6 +53,10 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    # Empty/misconfigured SMTP must not mark the whole app DOWN (Docker healthcheck).
+    mail:
+      enabled: ${MAIL_HEALTH_ENABLED:false}
 
 app:
   jwt:
