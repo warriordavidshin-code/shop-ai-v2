@@ -36,8 +36,12 @@ public class SocialAuthService {
         this.clock = clock;
     }
 
+    /**
+     * Kakao/Naver 공통: provider 식별자로 회원을 찾고,
+     * 없으면 소셜 정보로 자동 회원가입한 뒤 즉시 로그인(세션 발급)한다.
+     */
     @Transactional
-    public AuthService.AuthResult loginOrSignup(SocialProfile profile) {
+    public SocialAuthOutcome loginOrSignup(SocialProfile profile) {
         if (profile.provider() == null || profile.provider() == AuthProvider.LOCAL) {
             throw new BusinessException(ErrorCode.VALIDATION_FAILED, "지원하지 않는 소셜 로그인입니다.");
         }
@@ -47,11 +51,27 @@ public class SocialAuthService {
 
         Optional<Member> existing = memberRepository.findByAuthProviderAndProviderUserId(
                 profile.provider(), profile.providerUserId());
-        Member member = existing.orElseGet(() -> createSocialMember(profile));
         if (existing.isPresent()) {
+            Member member = existing.get();
             refreshProfileHints(member, profile);
+            AuthService.AuthResult session = authService.completeAuthenticatedSession(member);
+            log.info(
+                    "Social login success provider={} memberId={}",
+                    profile.provider(),
+                    member.getMemberId());
+            return new SocialAuthOutcome(session, false);
         }
-        return authService.completeAuthenticatedSession(member);
+
+        Member created = createSocialMember(profile);
+        AuthService.AuthResult session = authService.completeAuthenticatedSession(created);
+        log.info(
+                "Social auto-signup then login provider={} memberId={}",
+                profile.provider(),
+                created.getMemberId());
+        return new SocialAuthOutcome(session, true);
+    }
+
+    public record SocialAuthOutcome(AuthService.AuthResult authResult, boolean newlyRegistered) {
     }
 
     private Member createSocialMember(SocialProfile profile) {

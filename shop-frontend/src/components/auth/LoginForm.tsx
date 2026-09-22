@@ -30,6 +30,13 @@ function oauthErrorMessage(code: string | null): string | null {
     case "oauth_denied":
       return "소셜 로그인이 취소되었습니다.";
     case "oauth_missing_code":
+      return "소셜 로그인 인증 코드가 없습니다. 다시 시도해 주세요.";
+    case "oauth_email_conflict":
+      return "이미 가입된 이메일입니다. 기존 계정으로 로그인해 주세요.";
+    case "oauth_consent_required":
+      return "카카오 필수 동의 항목을 모두 허용한 뒤 다시 시도해 주세요.";
+    case "oauth_not_configured":
+      return "카카오 로그인이 아직 설정되지 않았습니다. 잠시 후 다시 시도해 주세요.";
     case "oauth_failed":
       return "소셜 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.";
     default:

@@ -10,8 +10,9 @@ Production shop domain: **https://btc-camel.com**
 1. Browser opens `GET /api/shop/auth/{kakao|naver}/login` (Next.js BFF → backend)
 2. Backend stores a one-time `state`, redirects to the provider authorize URL
 3. Provider redirects to `{OAUTH_PUBLIC_CALLBACK_BASE}/auth/{kakao|naver}/callback`
-4. Backend validates `state`, exchanges `code` server-side, finds/creates `member` by
-   `(auth_provider, provider_user_id)`, issues the same JWT + refresh cookies, redirects to the shop UI
+4. Backend validates `state`, exchanges `code` server-side, **finds or auto-creates** `member` by
+   `(auth_provider, provider_user_id)`, issues the same JWT + refresh cookies, redirects to the shop UI.
+   First-time Kakao users are registered automatically and logged in in the same callback.
 
 Use the **frontend BFF URL** as `OAUTH_PUBLIC_CALLBACK_BASE` so `Set-Cookie` attaches to the shop origin:
 

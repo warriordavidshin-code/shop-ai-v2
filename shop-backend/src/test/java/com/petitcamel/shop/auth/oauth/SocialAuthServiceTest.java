@@ -76,11 +76,14 @@ class SocialAuthServiceTest {
                         "access",
                         "refresh"));
 
-        AuthService.AuthResult result = socialAuthService.loginOrSignup(profile);
+        SocialAuthService.SocialAuthOutcome outcome = socialAuthService.loginOrSignup(profile);
 
-        assertThat(result.accessToken()).isEqualTo("access");
+        assertThat(outcome.newlyRegistered()).isTrue();
+        assertThat(outcome.authResult().accessToken()).isEqualTo("access");
+        assertThat(outcome.authResult().refreshToken()).isEqualTo("refresh");
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
         verify(memberRepository).save(captor.capture());
+        verify(authService).completeAuthenticatedSession(captor.getValue());
         Member saved = captor.getValue();
         assertThat(saved.getAuthProvider()).isEqualTo(AuthProvider.KAKAO);
         assertThat(saved.getProviderUserId()).isEqualTo("12345");
@@ -124,6 +127,9 @@ class SocialAuthServiceTest {
         existing.setAuthProvider(AuthProvider.NAVER);
         existing.setProviderUserId("nv-1");
         existing.setName("기존");
+        existing.setEmail("a@example.com");
+        existing.setGender(Gender.MALE);
+        existing.setBirthDate(LocalDate.of(1995, 5, 5));
 
         SocialProfile profile = new SocialProfile(
                 AuthProvider.NAVER,
@@ -145,9 +151,11 @@ class SocialAuthServiceTest {
                         "access",
                         "refresh"));
 
-        AuthService.AuthResult result = socialAuthService.loginOrSignup(profile);
+        SocialAuthService.SocialAuthOutcome outcome = socialAuthService.loginOrSignup(profile);
 
-        assertThat(result.refreshToken()).isEqualTo("refresh");
+        assertThat(outcome.newlyRegistered()).isFalse();
+        assertThat(outcome.authResult().refreshToken()).isEqualTo("refresh");
         verify(authService).completeAuthenticatedSession(existing);
+        verify(memberRepository, never()).save(any());
     }
 }

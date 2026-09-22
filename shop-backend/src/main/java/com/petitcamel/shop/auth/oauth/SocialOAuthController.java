@@ -96,24 +96,27 @@ public class SocialOAuthController {
                 default -> throw new IllegalStateException("Unsupported provider: " + provider);
             };
 
-            AuthService.AuthResult result = socialAuthService.loginOrSignup(profile);
+            SocialAuthService.SocialAuthOutcome outcome = socialAuthService.loginOrSignup(profile);
+            AuthService.AuthResult result = outcome.authResult();
             authCookieService.writeAuthCookies(response, result.accessToken(), result.refreshToken());
-            return redirectTo(frontendSuccess(redirectPath));
+            return redirectTo(frontendSuccess(redirectPath, outcome.newlyRegistered(), provider));
         } catch (BusinessException ex) {
             log.warn("OAuth callback failed provider={} message={}", provider, ex.getMessage());
-            return redirectTo(frontendLoginError("oauth_failed"));
+            return redirectTo(frontendLoginError(mapOAuthErrorCode(ex)));
         } catch (Exception ex) {
             log.error("Unexpected OAuth callback failure provider={}", provider, ex);
             return redirectTo(frontendLoginError("oauth_failed"));
         }
     }
 
-    private String frontendSuccess(String redirectPath) {
+    private String frontendSuccess(String redirectPath, boolean newlyRegistered, AuthProvider provider) {
         String path = OAuthStateService.sanitizeRedirect(redirectPath);
-        return UriComponentsBuilder.fromUriString(trimSlash(oAuthProperties.getFrontendUrl()))
-                .path(path)
-                .build(true)
-                .toUriString();
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(trimSlash(oAuthProperties.getFrontendUrl()))
+                .path(path);
+        if (newlyRegistered) {
+            builder.queryParam("social_signup", provider.name().toLowerCase());
+        }
+        return builder.build(true).toUriString();
     }
 
     private String frontendLoginError(String code) {
@@ -122,6 +125,23 @@ public class SocialOAuthController {
                 .queryParam("error", code)
                 .build(true)
                 .toUriString();
+    }
+
+    private static String mapOAuthErrorCode(BusinessException ex) {
+        return switch (ex.getCode()) {
+            case CONFLICT -> "oauth_email_conflict";
+            case BUSINESS_RULE_VIOLATION -> {
+                String message = ex.getMessage() == null ? "" : ex.getMessage();
+                if (message.contains("필수 동의") || message.contains("이메일 동의")) {
+                    yield "oauth_consent_required";
+                }
+                if (message.contains("설정되지 않았습니다")) {
+                    yield "oauth_not_configured";
+                }
+                yield "oauth_failed";
+            }
+            default -> "oauth_failed";
+        };
     }
 
     private static ResponseEntity<Void> redirectTo(String location) {

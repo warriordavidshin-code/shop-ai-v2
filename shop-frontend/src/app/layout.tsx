@@ -1,5 +1,7 @@
 ﻿import type { Metadata } from "next";
 import Script from "next/script";
+import { Suspense } from "react";
+import { SocialAuthNotice } from "@/components/auth/SocialAuthNotice";
 import "./globals.css";
 import "ckeditor5/ckeditor5.css";
 
@@ -23,6 +25,9 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
         {children}
+        <Suspense fallback={null}>
+          <SocialAuthNotice />
+        </Suspense>
       </body>
     </html>
   );

@@ -57,7 +57,9 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/password-reset",
                                 "/api/auth/refresh",
-                                "/api/auth/logout"
+                                "/api/auth/logout",
+                                "/api/auth/kakao/**",
+                                "/api/auth/naver/**"
                         ))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -68,11 +70,9 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/auth/kakao/login",
-                                "/api/auth/kakao/callback",
-                                "/api/auth/naver/login",
-                                "/api/auth/naver/callback"
+                        .requestMatchers(
+                                "/api/auth/kakao/**",
+                                "/api/auth/naver/**"
                         ).permitAll()
                         .requestMatchers(
                                 "/api/health",

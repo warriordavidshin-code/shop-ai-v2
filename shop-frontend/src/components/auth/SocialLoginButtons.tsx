@@ -27,6 +27,9 @@ export function SocialLoginButtons({ redirect }: SocialLoginButtonsProps) {
       >
         카카오로 시작하기
       </a>
+      <p className="text-center text-xs text-muted-foreground">
+        카카오 계정이 없으면 동의 후 자동으로 회원가입되고 바로 로그인됩니다.
+      </p>
       {/* 네이버 로그인 일시 비노출
       <a
         href={buildSocialUrl("naver", redirect)}

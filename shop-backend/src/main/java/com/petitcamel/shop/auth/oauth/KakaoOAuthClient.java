@@ -63,6 +63,8 @@ public class KakaoOAuthClient {
                 .queryParam("response_type", "code")
                 .queryParam("state", state)
                 .queryParam("scope", KAKAO_SCOPES)
+                // Force consent so required profile fields are collected on first signup.
+                .queryParam("prompt", "consent")
                 .build(true)
                 .toUriString();
     }
