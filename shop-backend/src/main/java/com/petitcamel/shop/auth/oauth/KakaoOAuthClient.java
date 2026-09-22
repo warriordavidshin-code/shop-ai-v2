@@ -27,10 +27,11 @@ public class KakaoOAuthClient {
     private static final String AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize";
     private static final String TOKEN_URL = "https://kauth.kakao.com/oauth/token";
     private static final String USER_URL = "https://kapi.kakao.com/v2/user/me";
+    private static final String SHIPPING_ADDRESS_URL = "https://kapi.kakao.com/v1/user/shipping_address";
 
     /**
      * Required consent items (카카오 개발자 콘솔에서도 필수 동의로 설정):
-     * account_email, name, gender, age_range, birthyear, phone_number
+     * account_email, name, gender, age_range, birthyear, phone_number, shipping_address
      */
     private static final String KAKAO_SCOPES = String.join(",",
             "account_email",
@@ -40,6 +41,7 @@ public class KakaoOAuthClient {
             "birthyear",
             "birthday",
             "phone_number",
+            "shipping_address",
             "profile_nickname",
             "profile_image");
 
@@ -134,7 +136,19 @@ public class KakaoOAuthClient {
         Gender gender = mapKakaoGender(textOrNull(account, "gender"));
         String phone = normalizeKakaoPhone(textOrNull(account, "phone_number"));
 
-        requireKakaoConsentFields(email, name, gender, birthyear, ageRange, birthDate, phone);
+        ShippingAddress shipping = fetchShippingAddress(accessToken);
+        name = firstNonBlank(name, shipping.receiverName());
+        phone = firstNonBlank(phone, shipping.receiverPhone());
+
+        requireKakaoConsentFields(
+                email,
+                name,
+                gender,
+                birthyear,
+                ageRange,
+                birthDate,
+                phone,
+                shipping);
 
         return new SocialProfile(
                 AuthProvider.KAKAO,
@@ -145,7 +159,48 @@ public class KakaoOAuthClient {
                 birthDate,
                 gender,
                 phone,
-                ageRange);
+                ageRange,
+                shipping.postcode(),
+                shipping.address1(),
+                shipping.address2());
+    }
+
+    private ShippingAddress fetchShippingAddress(String accessToken) {
+        JsonNode response;
+        try {
+            response = restClient.get()
+                    .uri(SHIPPING_ADDRESS_URL)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (Exception ex) {
+            log.warn("Kakao shipping address fetch failed: {}", ex.getMessage());
+            throw new BusinessException(
+                    ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "카카오 필수 동의 항목이 부족합니다: 배송지정보(shipping_address). 카카오 동의 화면에서 모두 허용한 뒤 다시 시도해 주세요.");
+        }
+        if (response == null) {
+            return ShippingAddress.empty();
+        }
+        if (response.path("shipping_addresses_needs_agreement").asBoolean(false)) {
+            return ShippingAddress.empty();
+        }
+        JsonNode addresses = response.path("shipping_addresses");
+        if (!addresses.isArray() || addresses.isEmpty()) {
+            return ShippingAddress.empty();
+        }
+
+        JsonNode selected = null;
+        for (JsonNode address : addresses) {
+            if (address.path("is_default").asBoolean(false)) {
+                selected = address;
+                break;
+            }
+        }
+        if (selected == null) {
+            selected = addresses.get(0);
+        }
+        return ShippingAddress.from(selected);
     }
 
     private void requireKakaoConsentFields(
@@ -155,7 +210,8 @@ public class KakaoOAuthClient {
             String birthyear,
             String ageRange,
             LocalDate birthDate,
-            String phone) {
+            String phone,
+            ShippingAddress shipping) {
         List<String> missing = new ArrayList<>();
         if (email == null || email.isBlank()) {
             missing.add("이메일(account_email)");
@@ -171,6 +227,9 @@ public class KakaoOAuthClient {
         }
         if (phone == null || phone.isBlank()) {
             missing.add("전화번호(phone_number)");
+        }
+        if (!shipping.isPresent()) {
+            missing.add("배송지정보(shipping_address)");
         }
         if (!missing.isEmpty()) {
             throw new BusinessException(
@@ -275,5 +334,36 @@ public class KakaoOAuthClient {
             }
         }
         return null;
+    }
+
+    record ShippingAddress(
+            String receiverName,
+            String receiverPhone,
+            String postcode,
+            String address1,
+            String address2
+    ) {
+        static ShippingAddress empty() {
+            return new ShippingAddress(null, null, null, null, null);
+        }
+
+        static ShippingAddress from(JsonNode address) {
+            String postcode = firstNonBlank(
+                    textOrNull(address, "zone_number"),
+                    textOrNull(address, "zip_code"));
+            return new ShippingAddress(
+                    textOrNull(address, "receiver_name"),
+                    normalizeKakaoPhone(firstNonBlank(
+                            textOrNull(address, "receiver_phone_number1"),
+                            textOrNull(address, "receiver_phone_number2"))),
+                    postcode,
+                    textOrNull(address, "base_address"),
+                    textOrNull(address, "detail_address"));
+        }
+
+        boolean isPresent() {
+            return (address1 != null && !address1.isBlank())
+                    || (postcode != null && !postcode.isBlank());
+        }
     }
 }

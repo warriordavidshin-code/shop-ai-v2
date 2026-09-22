@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Optional;
 
 @Service
@@ -88,9 +87,9 @@ public class SocialAuthService {
         member.setBirthDate(profile.birthDate());
         member.setGender(profile.gender() == null ? Gender.PREFER_NOT_TO_SAY : profile.gender());
         member.setPhone(trimTo(profile.phone(), 32));
-        member.setPostcode(null);
-        member.setAddress1(null);
-        member.setAddress2(null);
+        member.setPostcode(trimTo(profile.postcode(), 16));
+        member.setAddress1(trimTo(profile.address1(), 255));
+        member.setAddress2(trimTo(profile.address2(), 255));
         member.setAuthProvider(profile.provider());
         member.setProviderUserId(profile.providerUserId());
         member.setProfileImageUrl(trimTo(profile.profileImageUrl(), 512));
@@ -100,10 +99,11 @@ public class SocialAuthService {
         member.setUpdatedAt(now);
         Member saved = memberRepository.save(member);
         log.info(
-                "Social signup success provider={} memberId={} ageRange={}",
+                "Social signup success provider={} memberId={} ageRange={} hasShipping={}",
                 profile.provider(),
                 saved.getMemberId(),
-                profile.ageRange());
+                profile.ageRange(),
+                profile.address1() != null && !profile.address1().isBlank());
         return saved;
     }
 
@@ -134,6 +134,18 @@ public class SocialAuthService {
         }
         if (member.getBirthDate() == null && profile.birthDate() != null) {
             member.setBirthDate(profile.birthDate());
+            changed = true;
+        }
+        if ((member.getPostcode() == null || member.getPostcode().isBlank()) && profile.postcode() != null) {
+            member.setPostcode(trimTo(profile.postcode(), 16));
+            changed = true;
+        }
+        if ((member.getAddress1() == null || member.getAddress1().isBlank()) && profile.address1() != null) {
+            member.setAddress1(trimTo(profile.address1(), 255));
+            changed = true;
+        }
+        if ((member.getAddress2() == null || member.getAddress2().isBlank()) && profile.address2() != null) {
+            member.setAddress2(trimTo(profile.address2(), 255));
             changed = true;
         }
         if (changed) {

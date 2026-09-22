@@ -14,6 +14,9 @@ public record SocialProfile(
         LocalDate birthDate,
         Gender gender,
         String phone,
-        String ageRange
+        String ageRange,
+        String postcode,
+        String address1,
+        String address2
 ) {
 }

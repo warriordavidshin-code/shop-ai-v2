@@ -57,7 +57,10 @@ class SocialAuthServiceTest {
                 LocalDate.of(1990, 1, 1),
                 Gender.FEMALE,
                 "01012345678",
-                "30~39");
+                "30~39",
+                "06236",
+                "서울특별시 강남구 테헤란로 123",
+                "101동 1001호");
 
         when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
@@ -71,8 +74,8 @@ class SocialAuthServiceTest {
         when(authService.completeAuthenticatedSession(any(Member.class))).thenReturn(
                 new AuthService.AuthResult(
                         new MemberResponse(77L, "kakao_abc", "user@example.com", "홍길동", LocalDate.of(1990, 1, 1),
-                                36, Gender.FEMALE, "01012345678", null, null, null, MemberRole.CUSTOMER,
-                                AuthProvider.KAKAO, "https://img.example/a.png"),
+                                36, Gender.FEMALE, "01012345678", "06236", "서울특별시 강남구 테헤란로 123", "101동 1001호",
+                                MemberRole.CUSTOMER, AuthProvider.KAKAO, "https://img.example/a.png"),
                         "access",
                         "refresh"));
 
@@ -92,6 +95,9 @@ class SocialAuthServiceTest {
         assertThat(saved.getGender()).isEqualTo(Gender.FEMALE);
         assertThat(saved.getPhone()).isEqualTo("01012345678");
         assertThat(saved.getBirthDate()).isEqualTo(LocalDate.of(1990, 1, 1));
+        assertThat(saved.getPostcode()).isEqualTo("06236");
+        assertThat(saved.getAddress1()).isEqualTo("서울특별시 강남구 테헤란로 123");
+        assertThat(saved.getAddress2()).isEqualTo("101동 1001호");
         assertThat(saved.getPasswordHash()).isNull();
         assertThat(saved.getLoginId()).startsWith("kakao_");
     }
@@ -107,7 +113,10 @@ class SocialAuthServiceTest {
                 LocalDate.of(1990, 1, 1),
                 Gender.FEMALE,
                 "01012345678",
-                "30~39");
+                "30~39",
+                "06236",
+                "서울특별시 강남구 테헤란로 123",
+                null);
 
         when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
@@ -139,6 +148,9 @@ class SocialAuthServiceTest {
                 null,
                 LocalDate.of(1995, 5, 5),
                 Gender.MALE,
+                null,
+                null,
+                null,
                 null,
                 null);
 

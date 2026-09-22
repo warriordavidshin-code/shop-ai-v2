@@ -62,8 +62,10 @@ https://btc-camel.com/api/shop/auth/kakao/callback
 | 연령대 | `age_range` | 가입/갱신 시 참고 (출생연도 보강) |
 | 출생 연도 | `birthyear` (+`birthday`) | `member.birth_date` |
 | 카카오계정(전화번호) | `phone_number` | `member.phone` |
+| 배송지정보 | `shipping_address` (`/v1/user/shipping_address`) | `member.postcode` / `address1` / `address2` (수령인명·전화는 name/phone 보강) |
 
 필수 동의 누락 시 콜백에서 가입을 거절하고 안내 메시지를 반환합니다.
+배송지는 기본 배송지(없으면 첫 번째)를 사용하며, 동의했지만 카카오에 등록된 배송지가 없으면 가입이 거부됩니다.
 이메일 중복(기존 LOCAL 계정 등)도 자동 병합하지 않고 충돌로 처리합니다.
 
 ## Naver developers
