@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8080";
 
+function mapOAuthBrowserError(message: string | undefined): string {
+  const text = message ?? "";
+  if (text.includes("설정되지 않았습니다")) {
+    return "oauth_not_configured";
+  }
+  if (text.includes("필수 동의") || text.includes("이메일 동의")) {
+    return "oauth_consent_required";
+  }
+  if (text.includes("이미 가입된 이메일")) {
+    return "oauth_email_conflict";
+  }
+  return "oauth_failed";
+}
+
+function isOAuthBrowserPath(path: string): boolean {
+  return /^(auth\/(kakao|naver)\/(login|callback))$/.test(path);
+}
+
 async function proxy(request: NextRequest, pathSegments: string[]) {
   const path = pathSegments.join("/");
   const url = new URL(request.url);
@@ -50,6 +68,25 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     backendResponse.status === 204 ||
     backendResponse.status === 205 ||
     backendResponse.status === 304;
+
+  // Browser OAuth navigations should never render raw backend JSON errors.
+  if (
+    request.method === "GET" &&
+    isOAuthBrowserPath(path) &&
+    backendResponse.status >= 400 &&
+    (responseContentType ?? "").includes("application/json")
+  ) {
+    let message: string | undefined;
+    try {
+      const json = (await backendResponse.json()) as { message?: string };
+      message = json.message;
+    } catch {
+      // ignore parse errors
+    }
+    const errorCode = mapOAuthBrowserError(message);
+    return NextResponse.redirect(new URL(`/login?error=${errorCode}`, request.url), 302);
+  }
+
   const body = emptyBody ? null : await backendResponse.arrayBuffer();
   return new NextResponse(body, {
     status: backendResponse.status,

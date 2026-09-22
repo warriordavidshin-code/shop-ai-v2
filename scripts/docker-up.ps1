@@ -51,8 +51,22 @@ foreach ($required in @("DB_NAME", "DB_USER", "DB_PASSWORD", "JWT_SECRET")) {
   }
 }
 
+$kakaoEnabled = (Get-DotEnvValue $EnvFile "KAKAO_ENABLED")
+if ($kakaoEnabled -and $kakaoEnabled.Trim().ToLowerInvariant() -eq "true") {
+  foreach ($required in @("KAKAO_CLIENT_ID", "KAKAO_CLIENT_SECRET", "FRONTEND_URL", "OAUTH_PUBLIC_CALLBACK_BASE")) {
+    $value = Get-DotEnvValue $EnvFile $required
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      throw "KAKAO_ENABLED=true but '$required' is missing/empty in $EnvFile"
+    }
+  }
+  Write-Host "Kakao OAuth : enabled (client id/secret present)"
+} else {
+  Write-Host "Kakao OAuth : disabled (KAKAO_ENABLED is not true)"
+}
+
 Write-Host "ProjectDir : $ProjectDir"
 Write-Host "EnvFile    : $EnvFile"
+Write-Host ("Image tags : backend=" + (Get-DotEnvValue $EnvFile "BACKEND_IMAGE_TAG") + " frontend=" + (Get-DotEnvValue $EnvFile "FRONTEND_IMAGE_TAG"))
 Write-Host "DB_NAME/USER loaded (password not printed)"
 
 $composeArgs = @(
@@ -66,8 +80,9 @@ if ($ResetData) {
   & docker.exe compose @composeArgs down -v --remove-orphans
 }
 
-$upArgs = @("up", "-d", "--remove-orphans")
-if ($Build) { $upArgs = @("up", "-d", "--build", "--remove-orphans") }
+# Always recreate so newly added OAuth env vars are injected into running containers.
+$upArgs = @("up", "-d", "--remove-orphans", "--force-recreate")
+if ($Build) { $upArgs = @("up", "-d", "--build", "--remove-orphans", "--force-recreate") }
 
 & docker.exe compose @composeArgs @upArgs
 if ($LASTEXITCODE -ne 0) {
@@ -75,5 +90,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "Waiting for services..."
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 8
 & docker.exe compose @composeArgs ps
+
+if ($kakaoEnabled -and $kakaoEnabled.Trim().ToLowerInvariant() -eq "true") {
+  $backendEnv = & docker.exe compose @composeArgs exec -T backend sh -c "printenv KAKAO_ENABLED" 2>$null
+  if (($backendEnv | Out-String).Trim() -ne "true") {
+    throw "Kakao env was not injected into backend container. Re-run with an up-to-date docker-compose.yml and .env (KAKAO_ENABLED=true)."
+  }
+  Write-Host "Kakao OAuth : confirmed inside backend container"
+}
