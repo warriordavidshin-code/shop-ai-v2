@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8080";
+const FALLBACK_ORIGIN = process.env.FRONTEND_URL ?? "https://btc-camel.com";
 
 function mapOAuthBrowserError(message: string | undefined): string {
   const text = message ?? "";
@@ -18,6 +19,44 @@ function mapOAuthBrowserError(message: string | undefined): string {
 
 function isOAuthBrowserPath(path: string): boolean {
   return /^(auth\/(kakao|naver)\/(login|callback))$/.test(path);
+}
+
+function isUsableHost(host: string | null | undefined): host is string {
+  if (!host) {
+    return false;
+  }
+  const value = host.split(",")[0]?.trim().toLowerCase() ?? "";
+  if (!value) {
+    return false;
+  }
+  // Next.js bind address must never become a browser redirect target.
+  if (value.startsWith("0.0.0.0") || value.startsWith("[::]") || value.startsWith("::")) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Prefer reverse-proxy forwarded host, then Host header, then FRONTEND_URL.
+ * Avoids redirects like https://0.0.0.0:3000 when HOSTNAME=0.0.0.0.
+ */
+function publicOrigin(request: NextRequest): string {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  if (isUsableHost(forwardedHost)) {
+    const proto = forwardedProto?.split(",")[0]?.trim() || "https";
+    return `${proto}://${forwardedHost.split(",")[0].trim()}`;
+  }
+
+  const host = request.headers.get("host");
+  if (isUsableHost(host)) {
+    const proto =
+      forwardedProto?.split(",")[0]?.trim() ||
+      (host.includes("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+    return `${proto}://${host}`;
+  }
+
+  return FALLBACK_ORIGIN.replace(/\/$/, "");
 }
 
 async function proxy(request: NextRequest, pathSegments: string[]) {
@@ -84,7 +123,8 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
       // ignore parse errors
     }
     const errorCode = mapOAuthBrowserError(message);
-    return NextResponse.redirect(new URL(`/login?error=${errorCode}`, request.url), 302);
+    const origin = publicOrigin(request);
+    return NextResponse.redirect(`${origin}/login?error=${errorCode}`, 302);
   }
 
   const body = emptyBody ? null : await backendResponse.arrayBuffer();

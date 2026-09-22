@@ -90,8 +90,10 @@
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
       BACKEND_URL: ${BACKEND_INTERNAL_URL:-http://backend:8080}
+      FRONTEND_URL: ${FRONTEND_URL:-https://btc-camel.com}
       NEXT_PUBLIC_STORE_NAME: ${NEXT_PUBLIC_STORE_NAME:-BoutiqueCamel}
       PORT: "3000"
+      # Bind address only (listen). Do not use this as a browser-facing host.
       HOSTNAME: "0.0.0.0"
       TZ: Asia/Seoul
     ports:
