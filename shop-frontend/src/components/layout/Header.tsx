@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import { HeaderAuthNav } from "@/components/layout/HeaderAuthNav";
 import { Container } from "@/components/ui/Container";
 
 const nav = [
@@ -22,12 +23,7 @@ export function Header() {
               {item.label}
             </Link>
           ))}
-          <Link href="/login" className="text-foreground hover:underline">
-            로그인
-          </Link>
-          <Link href="/mypage" className="text-foreground hover:underline">
-            마이페이지
-          </Link>
+          <HeaderAuthNav />
         </nav>
       </Container>
     </header>

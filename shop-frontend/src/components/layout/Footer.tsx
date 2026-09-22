@@ -1,7 +1,32 @@
-﻿import Link from "next/link";
+﻿"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getMe } from "@/features/auth/api";
 import { Container } from "@/components/ui/Container";
 
 export function Footer() {
+  const [showMypage, setShowMypage] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await getMe();
+        if (!cancelled) {
+          setShowMypage(!!me);
+        }
+      } catch {
+        if (!cancelled) {
+          setShowMypage(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <footer className="mt-16 border-t border-border bg-surface-soft">
       <Container className="flex flex-col gap-4 py-10 text-sm text-muted-foreground">
@@ -12,7 +37,7 @@ export function Footer() {
         <div className="flex flex-wrap gap-4">
           <Link href="/products">상품</Link>
           <Link href="/style">AI 스타일리스트</Link>
-          <Link href="/mypage">마이페이지</Link>
+          {showMypage ? <Link href="/mypage">마이페이지</Link> : null}
         </div>
         <p className="text-xs">© {new Date().getFullYear()} BoutiqueCamel</p>
       </Container>
