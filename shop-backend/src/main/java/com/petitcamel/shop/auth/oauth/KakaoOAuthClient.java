@@ -30,8 +30,9 @@ public class KakaoOAuthClient {
     private static final String SHIPPING_ADDRESS_URL = "https://kapi.kakao.com/v1/user/shipping_address";
 
     /**
-     * Required consent items (카카오 개발자 콘솔에서도 필수 동의로 설정):
-     * account_email, name, gender, age_range, birthyear, phone_number, shipping_address
+     * Only request scopes that are enabled in Kakao Developers > 카카오 로그인 > 동의항목.
+     * Required consent: account_email, name, gender, age_range, birthyear, phone_number, shipping_address
+     * Do NOT include birthday / profile_nickname / profile_image unless those items are also enabled there.
      */
     private static final String KAKAO_SCOPES = String.join(",",
             "account_email",
@@ -39,11 +40,8 @@ public class KakaoOAuthClient {
             "gender",
             "age_range",
             "birthyear",
-            "birthday",
             "phone_number",
-            "shipping_address",
-            "profile_nickname",
-            "profile_image");
+            "shipping_address");
 
     private final OAuthProperties properties;
     private final RestClient restClient;
