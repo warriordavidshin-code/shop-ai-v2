@@ -24,10 +24,10 @@ export function BrandLogo({
 }: BrandLogoProps) {
   const image = (
     <Image
-      src="/logo-boutique-camel.jpg"
+      src="/logo-boutique-camel.png"
       alt="Boutique Camel"
-      width={480}
-      height={120}
+      width={1024}
+      height={145}
       priority={priority}
       className={`${sizeClass[size]} object-contain object-left ${className}`.trim()}
     />
