@@ -9,11 +9,15 @@ type BrandLogoProps = {
   priority?: boolean;
 };
 
+/**
+ * Wide camel+wordmark mark (≈7:1). Cap height and max-width per surface
+ * so it stays crisp without crowding nav or auth forms.
+ */
 const sizeClass: Record<NonNullable<BrandLogoProps["size"]>, string> = {
-  header: "h-9 w-auto md:h-11",
-  auth: "h-12 w-auto md:h-14",
-  footer: "h-10 w-auto",
-  hero: "h-10 w-auto md:h-12",
+  header: "h-7 w-auto max-w-[160px] sm:h-8 sm:max-w-[190px] md:h-9 md:max-w-[220px]",
+  auth: "h-10 w-auto max-w-[240px] md:h-12 md:max-w-[300px]",
+  footer: "h-8 w-auto max-w-[180px]",
+  hero: "h-9 w-auto max-w-[220px] md:h-11 md:max-w-[280px]",
 };
 
 export function BrandLogo({
