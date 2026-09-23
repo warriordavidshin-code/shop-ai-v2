@@ -1,5 +1,6 @@
 ﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { MypageClient } from "@/components/member/MypageClient";
 import { memberSchema, type Member } from "@/features/auth/schemas";
 
@@ -34,7 +35,9 @@ export default async function MypagePage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-[720px] px-4 py-12 md:px-8">
-        <p className="mb-2 text-sm tracking-wide text-muted-foreground">BoutiqueCamel</p>
+        <div className="mb-6">
+          <BrandLogo size="auth" />
+        </div>
         <h1 className="mb-8 text-3xl font-semibold text-foreground">마이페이지</h1>
         <MypageClient member={member} />
       </div>

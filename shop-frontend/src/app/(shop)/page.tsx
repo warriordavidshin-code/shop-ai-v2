@@ -1,4 +1,5 @@
 ﻿import Link from "next/link";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Container } from "@/components/ui/Container";
 import { ProductGrid } from "@/components/product/ProductCard";
 import { HomeHeroBanner } from "@/components/home/HomeHeroBanner";
@@ -41,7 +42,7 @@ export default async function HomePage() {
       <section className="border-b border-border bg-background">
         <Container className="grid gap-8 py-10 lg:grid-cols-2 lg:items-center lg:py-16">
           <div className="flex flex-col gap-5">
-            <p className="text-sm tracking-wide text-muted-foreground">BoutiqueCamel</p>
+            <BrandLogo size="hero" href={null} />
             <h1 className="text-3xl font-semibold leading-tight text-foreground md:text-4xl">
               오늘의 나에게 어울리는 옷
             </h1>
