@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 import { AdminProductForm } from "@/components/admin/AdminProductForm";
@@ -36,7 +36,7 @@ export default async function AdminEditProductPage({ params }: { params: Params 
   return (
     <main className="py-10">
       <Container>
-        <h1 className="mb-6 text-2xl font-semibold">상품 수정</h1>
+        <h1 className="mb-6 heading-ko text-2xl">상품 수정</h1>
         <AdminProductForm
           mode="edit"
           productId={Number(id)}

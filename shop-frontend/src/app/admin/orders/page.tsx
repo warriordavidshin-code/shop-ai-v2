@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 
@@ -26,7 +26,7 @@ export default async function AdminOrdersPage() {
   return (
     <main className="py-10">
       <Container className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">주문 관리</h1>
+        <h1 className="heading-ko text-2xl">주문 관리</h1>
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="min-w-full text-left text-sm">
             <thead className="bg-surface-soft text-muted-foreground">

@@ -1,23 +1,50 @@
 import Image from "next/image";
 import Link from "next/link";
 
+type BrandLogoSize = "header" | "auth" | "footer" | "hero" | "admin";
+
 type BrandLogoProps = {
   href?: string | null;
-  /** Visual size preset */
-  size?: "header" | "auth" | "footer" | "hero";
+  size?: BrandLogoSize;
   className?: string;
   priority?: boolean;
 };
 
-/**
- * Wide camel+wordmark mark (≈7:1). Cap height and max-width per surface
- * so it stays crisp without crowding nav or auth forms.
- */
-const sizeClass: Record<NonNullable<BrandLogoProps["size"]>, string> = {
-  header: "h-7 w-auto max-w-[160px] sm:h-8 sm:max-w-[190px] md:h-9 md:max-w-[220px]",
-  auth: "h-10 w-auto max-w-[240px] md:h-12 md:max-w-[300px]",
-  footer: "h-8 w-auto max-w-[180px]",
-  hero: "h-9 w-auto max-w-[220px] md:h-11 md:max-w-[280px]",
+/** Pre-rendered @3x assets so wordmarks stay sharp at each display size. */
+const logoBySize: Record<
+  BrandLogoSize,
+  { src: string; width: number; height: number; className: string }
+> = {
+  header: {
+    src: "/brand/logo-header@3x.png",
+    width: 763,
+    height: 108,
+    className: "h-8 w-auto md:h-9",
+  },
+  auth: {
+    src: "/brand/logo-auth@3x.png",
+    width: 1186,
+    height: 168,
+    className: "h-11 w-auto md:h-14",
+  },
+  footer: {
+    src: "/brand/logo-footer@3x.png",
+    width: 847,
+    height: 120,
+    className: "h-9 w-auto md:h-10",
+  },
+  hero: {
+    src: "/brand/logo-hero@3x.png",
+    width: 1017,
+    height: 144,
+    className: "h-10 w-auto md:h-12",
+  },
+  admin: {
+    src: "/brand/logo-admin@3x.png",
+    width: 678,
+    height: 96,
+    className: "h-7 w-auto md:h-8",
+  },
 };
 
 export function BrandLogo({
@@ -26,14 +53,16 @@ export function BrandLogo({
   className = "",
   priority = false,
 }: BrandLogoProps) {
+  const asset = logoBySize[size];
   const image = (
     <Image
-      src="/logo-boutique-camel.png"
+      src={asset.src}
       alt="Boutique Camel"
-      width={1024}
-      height={145}
+      width={asset.width}
+      height={asset.height}
       priority={priority}
-      className={`${sizeClass[size]} object-contain object-left ${className}`.trim()}
+      unoptimized
+      className={`${asset.className} object-contain object-left ${className}`.trim()}
     />
   );
 

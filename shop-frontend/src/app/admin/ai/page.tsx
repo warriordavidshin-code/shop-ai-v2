@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 
@@ -25,7 +25,7 @@ export default async function AdminAiPage() {
   return (
     <main className="py-10">
       <Container className="flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold">AI MD 통계</h1>
+        <h1 className="heading-ko text-2xl">AI MD 통계</h1>
         <pre className="overflow-x-auto rounded-xl border border-border bg-surface-soft p-4 text-xs">
           {JSON.stringify(data, null, 2)}
         </pre>

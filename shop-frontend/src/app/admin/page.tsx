@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 
@@ -33,12 +33,12 @@ export default async function AdminDashboardPage() {
   return (
     <main className="py-10">
       <Container className="flex flex-col gap-8">
-        <h1 className="text-2xl font-semibold">관리자 대시보드</h1>
+        <h1 className="heading-ko text-2xl">관리자 대시보드</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => (
             <div key={card.label} className="rounded-xl border border-border bg-surface p-5">
               <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums">{card.value}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{card.value}</p>
             </div>
           ))}
         </div>

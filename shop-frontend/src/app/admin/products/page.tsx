@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+﻿import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
@@ -48,7 +48,7 @@ export default async function AdminProductsPage() {
     <main className="py-10">
       <Container className="flex flex-col gap-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold">상품 관리</h1>
+          <h1 className="heading-ko text-2xl">상품 관리</h1>
           <Link
             href="/admin/products/new"
             className="inline-flex h-11 items-center rounded-xl bg-brand px-4 text-sm font-medium text-white"

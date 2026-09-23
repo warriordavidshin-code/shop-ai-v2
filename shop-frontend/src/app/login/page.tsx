@@ -10,7 +10,7 @@ export default function LoginPage() {
           <div className="mb-6">
             <BrandLogo size="auth" priority />
           </div>
-          <h1 className="mb-6 text-3xl font-semibold text-foreground">로그인</h1>
+          <h1 className="heading-ko mb-6 text-3xl text-foreground">로그인</h1>
           <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-surface-soft" />}>
             <LoginForm />
           </Suspense>

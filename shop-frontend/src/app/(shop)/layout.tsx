@@ -5,8 +5,8 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background pb-16 md:pb-0">
-      <div className="bg-surface-warm px-4 py-2 text-center text-xs text-muted-foreground md:text-sm">
-        봄 신상품과 AI 코디 추천을 만나보세요
+      <div className="border-b border-border/60 bg-surface-warm px-4 py-2 text-right text-[11px] tracking-[0.02em] text-muted-foreground md:text-xs">
+        일상을 특별하게, BoutiqueCamel · 5만원 이상 구매 시 무료배송
       </div>
       <Header />
       <div className="flex-1">{children}</div>

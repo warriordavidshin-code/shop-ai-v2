@@ -14,10 +14,10 @@ const nav = [
 export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur">
-      <Container className="flex h-14 items-center justify-between gap-3 md:h-16 md:gap-6">
-        <div className="flex min-w-0 items-center gap-4 md:gap-6">
+      <Container className="flex h-14 items-center justify-between gap-3 md:h-[4.25rem] md:gap-8">
+        <div className="flex min-w-0 items-center gap-5 md:gap-8">
           <BrandLogo size="header" priority />
-          <nav className="hidden items-center gap-5 text-sm text-muted-foreground md:flex">
+          <nav className="hidden items-center gap-6 text-[13px] tracking-[0.04em] text-muted-foreground md:flex">
             {nav.map((item) => (
               <Link key={item.href} href={item.href} className="hover:text-foreground">
                 {item.label}
@@ -25,7 +25,7 @@ export function Header() {
             ))}
           </nav>
         </div>
-        <nav className="hidden shrink-0 items-center gap-4 text-sm text-muted-foreground md:flex">
+        <nav className="hidden shrink-0 items-center gap-4 text-[13px] tracking-[0.02em] text-muted-foreground md:flex">
           <HeaderAuthNav />
         </nav>
       </Container>

@@ -21,10 +21,10 @@ export function ProductCard({ product }: { product: ProductSummary }) {
         />
       </Link>
       <div className="flex flex-col gap-1">
-        <p className="text-xs text-muted-foreground">{product.brandName}</p>
+        <p className="text-[11px] tracking-[0.08em] text-muted-foreground">{product.brandName}</p>
         <Link
           href={`/products/${product.productId}`}
-          className="line-clamp-2 text-sm font-medium text-foreground hover:underline"
+          className="line-clamp-2 text-sm font-medium leading-snug text-foreground hover:underline"
         >
           {product.productName}
         </Link>

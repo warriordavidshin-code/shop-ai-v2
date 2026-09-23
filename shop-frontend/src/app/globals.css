@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fdfcf9;
+  /* BoutiqueCamel mood board: cream / camel brown */
+  --background: #fdfbf7;
   --surface: #ffffff;
-  --surface-soft: #f8f3eb;
-  --surface-warm: #f2e9dc;
-  --foreground: #302a25;
-  --muted-foreground: #7c7268;
-  --border: #e9e0d5;
-  --brand: #ad7a50;
-  --brand-hover: #93623d;
-  --brand-soft: #efe0d0;
-  --accent: #6c765d;
-  --accent-soft: #e9ede4;
+  --surface-soft: #f7f1e8;
+  --surface-warm: #efe6da;
+  --foreground: #3a322c;
+  --muted-foreground: #8a7d72;
+  --border: #e7ddd1;
+  --brand: #765a4e;
+  --brand-hover: #634a40;
+  --brand-soft: #efe4dc;
+  --accent: #9a7b6a;
+  --accent-soft: #f3ebe5;
   --danger: #b5473c;
   --success: #477258;
 }
@@ -32,7 +33,13 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-success: var(--success);
+
+  /* Menu / product / price / body */
   --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  /* English logo / titles */
+  --font-display: var(--font-cormorant), "Cormorant Garamond", "Times New Roman", serif;
+  /* Korean main titles */
+  --font-display-ko: var(--font-gowun), "Gowun Batang", "Batang", serif;
 }
 
 body {
@@ -40,7 +47,37 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 15px;
+  letter-spacing: -0.01em;
   min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-display-ko {
+  font-family: var(--font-display-ko);
+}
+
+h1,
+h2,
+.heading-ko {
+  font-family: var(--font-display-ko);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.heading-en {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

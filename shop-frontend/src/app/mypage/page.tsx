@@ -38,7 +38,7 @@ export default async function MypagePage() {
         <div className="mb-6">
           <BrandLogo size="auth" />
         </div>
-        <h1 className="mb-8 text-3xl font-semibold text-foreground">마이페이지</h1>
+        <h1 className="heading-ko mb-8 text-3xl text-foreground">마이페이지</h1>
         <MypageClient member={member} />
       </div>
     </main>

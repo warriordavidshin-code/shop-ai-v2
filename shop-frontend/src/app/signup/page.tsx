@@ -8,7 +8,7 @@ export default function SignupPage() {
         <div className="mb-6">
           <BrandLogo size="auth" priority />
         </div>
-        <h1 className="mb-8 text-3xl font-semibold text-foreground">회원가입</h1>
+        <h1 className="heading-ko mb-8 text-3xl text-foreground">회원가입</h1>
         <SignupForm />
       </div>
     </main>
