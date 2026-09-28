@@ -4,7 +4,9 @@ import com.petitcamel.shop.member.dto.MemberResponse;
 import com.petitcamel.shop.member.dto.PasswordChangeRequest;
 import com.petitcamel.shop.member.dto.UpdateMemberRequest;
 import com.petitcamel.shop.member.service.MemberService;
+import com.petitcamel.shop.member.service.ProfileReauthService;
 import com.petitcamel.shop.security.MemberPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberController {
 
     private final MemberService memberService;
+    private final ProfileReauthService profileReauthService;
 
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, ProfileReauthService profileReauthService) {
         this.memberService = memberService;
+        this.profileReauthService = profileReauthService;
     }
 
     @GetMapping
@@ -32,7 +36,9 @@ public class MemberController {
     @PatchMapping
     public MemberResponse updateMe(
             @AuthenticationPrincipal MemberPrincipal principal,
-            @Valid @RequestBody UpdateMemberRequest request) {
+            @Valid @RequestBody UpdateMemberRequest request,
+            HttpServletRequest httpRequest) {
+        profileReauthService.requireVerified(httpRequest, principal.getMemberId());
         return memberService.updateMe(principal.getMemberId(), request);
     }
 

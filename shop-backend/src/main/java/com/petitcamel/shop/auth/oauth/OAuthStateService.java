@@ -29,15 +29,26 @@ public class OAuthStateService {
     }
 
     public String issue(AuthProvider provider, String redirectPath) {
+        return put(new StateEntry(provider, sanitizeRedirect(redirectPath), Purpose.LOGIN, null,
+                clock.instant().plusSeconds(TTL_SECONDS)));
+    }
+
+    /** State for re-verifying an already logged-in member; the callback must not log anyone in. */
+    public String issueReauth(AuthProvider provider, Long memberId, String redirectPath) {
+        return put(new StateEntry(provider, sanitizeRedirect(redirectPath), Purpose.REAUTH, memberId,
+                clock.instant().plusSeconds(TTL_SECONDS)));
+    }
+
+    private String put(StateEntry entry) {
         purgeExpired();
         byte[] bytes = new byte[24];
         secureRandom.nextBytes(bytes);
         String state = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        states.put(state, new StateEntry(provider, sanitizeRedirect(redirectPath), clock.instant().plusSeconds(TTL_SECONDS)));
+        states.put(state, entry);
         return state;
     }
 
-    public String consume(String state, AuthProvider expectedProvider) {
+    public OAuthState consume(String state, AuthProvider expectedProvider) {
         if (state == null || state.isBlank()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "유효하지 않은 OAuth state 입니다.");
         }
@@ -48,7 +59,7 @@ public class OAuthStateService {
         if (entry.provider() != expectedProvider) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "OAuth provider 가 일치하지 않습니다.");
         }
-        return entry.redirectPath();
+        return new OAuthState(entry.redirectPath(), entry.purpose(), entry.memberId());
     }
 
     private void purgeExpired() {
@@ -66,6 +77,19 @@ public class OAuthStateService {
         return path;
     }
 
-    private record StateEntry(AuthProvider provider, String redirectPath, Instant expiresAt) {
+    public enum Purpose {
+        LOGIN,
+        REAUTH
+    }
+
+    public record OAuthState(String redirectPath, Purpose purpose, Long memberId) {
+    }
+
+    private record StateEntry(
+            AuthProvider provider,
+            String redirectPath,
+            Purpose purpose,
+            Long memberId,
+            Instant expiresAt) {
     }
 }

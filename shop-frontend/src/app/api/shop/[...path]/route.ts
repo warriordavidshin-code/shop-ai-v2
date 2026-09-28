@@ -18,7 +18,11 @@ function mapOAuthBrowserError(message: string | undefined): string {
 }
 
 function isOAuthBrowserPath(path: string): boolean {
-  return /^(auth\/(kakao|naver)\/(login|callback))$/.test(path);
+  return /^(auth\/(kakao|naver)\/(login|callback|reauth))$/.test(path);
+}
+
+function isOAuthReauthPath(path: string): boolean {
+  return /^auth\/(kakao|naver)\/reauth$/.test(path);
 }
 
 function isUsableHost(host: string | null | undefined): host is string {
@@ -128,7 +132,8 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
     }
     const errorCode = mapOAuthBrowserError(message);
     const origin = publicOrigin(request);
-    return NextResponse.redirect(`${origin}/login?error=${errorCode}`, 302);
+    const errorPage = isOAuthReauthPath(path) ? "/mypage/verify" : "/login";
+    return NextResponse.redirect(`${origin}${errorPage}?error=${errorCode}`, 302);
   }
 
   const body = emptyBody ? null : await backendResponse.arrayBuffer();

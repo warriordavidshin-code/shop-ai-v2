@@ -1,9 +1,11 @@
 package com.petitcamel.shop.order.controller;
 
 import com.petitcamel.shop.common.dto.PageResponse;
+import com.petitcamel.shop.order.dto.CancelOrderRequest;
 import com.petitcamel.shop.order.dto.CreateOrderRequest;
 import com.petitcamel.shop.order.dto.OrderResponse;
 import com.petitcamel.shop.order.dto.OrderSummaryResponse;
+import com.petitcamel.shop.order.service.OrderCancelRequestService;
 import com.petitcamel.shop.order.service.OrderService;
 import com.petitcamel.shop.security.MemberPrincipal;
 import jakarta.validation.Valid;
@@ -22,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderCancelRequestService orderCancelRequestService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, OrderCancelRequestService orderCancelRequestService) {
         this.orderService = orderService;
+        this.orderCancelRequestService = orderCancelRequestService;
     }
 
     @PostMapping("/api/orders")
@@ -56,5 +60,13 @@ public class OrderController {
             @AuthenticationPrincipal MemberPrincipal principal,
             @PathVariable String orderNo) {
         return orderService.cancelOrder(principal.getMemberId(), orderNo);
+    }
+
+    @PostMapping("/api/orders/{orderNo}/cancel-request")
+    public OrderResponse requestCancel(
+            @AuthenticationPrincipal MemberPrincipal principal,
+            @PathVariable String orderNo,
+            @Valid @RequestBody CancelOrderRequest request) {
+        return orderCancelRequestService.requestCancel(principal.getMemberId(), orderNo, request.reason());
     }
 }

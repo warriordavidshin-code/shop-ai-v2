@@ -5,6 +5,7 @@ public record AdminDashboardResponse(
         long onSaleProductCount,
         long recentOrderCount,
         long pendingPaymentCount,
-        long memberCount
+        long memberCount,
+        long cancelRequestCount
 ) {
 }

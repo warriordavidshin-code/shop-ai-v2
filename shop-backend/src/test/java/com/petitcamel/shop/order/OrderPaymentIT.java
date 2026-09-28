@@ -2,6 +2,8 @@ package com.petitcamel.shop.order;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petitcamel.shop.member.domain.MemberRole;
+import com.petitcamel.shop.security.JwtService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +60,9 @@ class OrderPaymentIT {
 
     @Autowired
     JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    JwtService jwtService;
 
     private String accessToken;
 
@@ -224,7 +229,27 @@ class OrderPaymentIT {
         mockMvc.perform(post("/api/orders/{orderNo}/cancel", paidOrderNo)
                         .cookie(new Cookie("access_token", accessToken))
                         .with(csrf()))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/orders/{orderNo}/cancel-request", paidOrderNo)
+                        .cookie(new Cookie("access_token", accessToken))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"단순 변심\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderStatus").value("CANCEL_REQUESTED"))
+                .andExpect(jsonPath("$.cancelRequest.status").value("REQUESTED"));
+
+        Long cancelRequestId = jdbcTemplate.queryForObject(
+                "SELECT r.cancel_request_id FROM order_cancel_request r JOIN orders o ON o.order_id = r.order_id "
+                        + "WHERE o.order_no = ? AND r.status = 'REQUESTED'",
+                Long.class, paidOrderNo);
+
+        mockMvc.perform(post("/api/admin/order-cancel-requests/{id}/approve", cancelRequestId)
+                        .cookie(new Cookie("access_token", adminAccessToken()))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"))
                 .andExpect(jsonPath("$.orderStatus").value("CANCELLED"));
 
         Integer stockRestored = jdbcTemplate.queryForObject(
@@ -290,6 +315,13 @@ class OrderPaymentIT {
         jdbcTemplate.update("DELETE FROM payment");
         jdbcTemplate.update("DELETE FROM order_item");
         jdbcTemplate.update("DELETE FROM orders");
+    }
+
+    private String adminAccessToken() throws Exception {
+        String token = signupAndGetAccessToken();
+        JwtService.AccessTokenClaims claims = jwtService.parseAccessToken(token);
+        jdbcTemplate.update("UPDATE member SET role = 'ADMIN' WHERE member_id = ?", claims.memberId());
+        return jwtService.createAccessToken(claims.memberId(), claims.loginId(), MemberRole.ADMIN);
     }
 
     private String signupAndGetAccessToken() throws Exception {

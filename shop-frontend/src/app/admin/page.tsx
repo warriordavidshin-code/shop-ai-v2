@@ -1,4 +1,5 @@
-﻿import { cookies } from "next/headers";
+﻿import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Container } from "@/components/ui/Container";
 
@@ -27,6 +28,7 @@ export default async function AdminDashboardPage() {
     { label: "재고 부족", value: data.lowStockCount ?? "-" },
     { label: "최근 주문(7일)", value: data.recentOrderCount ?? "-" },
     { label: "결제 대기", value: data.pendingPaymentCount ?? "-" },
+    { label: "취소 요청 대기", value: data.cancelRequestCount ?? "-", href: "/admin/cancel-requests" },
     { label: "회원 수", value: data.memberCount ?? "-" },
   ];
 
@@ -35,12 +37,27 @@ export default async function AdminDashboardPage() {
       <Container className="flex flex-col gap-8">
         <h1 className="heading-ko text-2xl">관리자 대시보드</h1>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => (
-            <div key={card.label} className="rounded-xl border border-border bg-surface p-5">
-              <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{card.value}</p>
-            </div>
-          ))}
+          {cards.map((card) => {
+            const content = (
+              <>
+                <p className="text-sm text-muted-foreground">{card.label}</p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{card.value}</p>
+              </>
+            );
+            return card.href ? (
+              <Link
+                key={card.label}
+                href={card.href}
+                className="rounded-xl border border-border bg-surface p-5 transition-colors hover:bg-surface-soft"
+              >
+                {content}
+              </Link>
+            ) : (
+              <div key={card.label} className="rounded-xl border border-border bg-surface p-5">
+                {content}
+              </div>
+            );
+          })}
         </div>
       </Container>
     </main>

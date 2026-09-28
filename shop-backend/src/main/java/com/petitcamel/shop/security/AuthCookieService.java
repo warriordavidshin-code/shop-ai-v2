@@ -16,6 +16,7 @@ public class AuthCookieService {
 
     public static final String ACCESS_TOKEN_COOKIE = "access_token";
     public static final String REFRESH_TOKEN_COOKIE = "refresh_token";
+    public static final String REAUTH_COOKIE = "profile_reauth";
 
     private final CookieProperties cookieProperties;
     private final JwtProperties jwtProperties;
@@ -39,6 +40,15 @@ public class AuthCookieService {
     public void clearAuthCookies(HttpServletResponse response) {
         response.addHeader(HttpHeaders.SET_COOKIE, expireCookie(ACCESS_TOKEN_COOKIE).toString());
         response.addHeader(HttpHeaders.SET_COOKIE, expireCookie(REFRESH_TOKEN_COOKIE).toString());
+        clearReauthCookie(response);
+    }
+
+    public void writeReauthCookie(HttpServletResponse response, String token, Duration maxAge) {
+        response.addHeader(HttpHeaders.SET_COOKIE, buildCookie(REAUTH_COOKIE, token, maxAge).toString());
+    }
+
+    public void clearReauthCookie(HttpServletResponse response) {
+        response.addHeader(HttpHeaders.SET_COOKIE, expireCookie(REAUTH_COOKIE).toString());
     }
 
     public Optional<String> readCookie(HttpServletRequest request, String name) {

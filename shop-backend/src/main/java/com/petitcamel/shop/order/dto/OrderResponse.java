@@ -24,6 +24,7 @@ public record OrderResponse(
         Instant orderedAt,
         List<OrderItemResponse> items,
         PaymentStatus paymentStatus,
-        String paymentMethod
+        String paymentMethod,
+        CancelRequestInfo cancelRequest
 ) {
 }

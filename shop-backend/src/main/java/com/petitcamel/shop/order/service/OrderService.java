@@ -16,11 +16,13 @@ import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.order.domain.OrderEntity;
 import com.petitcamel.shop.order.domain.OrderItem;
 import com.petitcamel.shop.order.domain.OrderStatus;
+import com.petitcamel.shop.order.dto.CancelRequestInfo;
 import com.petitcamel.shop.order.dto.CreateOrderRequest;
 import com.petitcamel.shop.order.dto.OrderItemRequest;
 import com.petitcamel.shop.order.dto.OrderItemResponse;
 import com.petitcamel.shop.order.dto.OrderResponse;
 import com.petitcamel.shop.order.dto.OrderSummaryResponse;
+import com.petitcamel.shop.order.repository.OrderCancelRequestRepository;
 import com.petitcamel.shop.order.repository.OrderEntityRepository;
 import com.petitcamel.shop.order.repository.OrderItemRepository;
 import com.petitcamel.shop.payment.domain.Payment;
@@ -50,8 +52,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,8 +64,13 @@ public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
+    /** Statuses whose cancellation restores inventory/payment; later statuses are already shipped. */
+    static final Set<OrderStatus> CANCELLABLE_STATUSES =
+            EnumSet.of(OrderStatus.PAYMENT_PENDING, OrderStatus.PAID, OrderStatus.PREPARING);
+
     private final OrderEntityRepository orderEntityRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderCancelRequestRepository orderCancelRequestRepository;
     private final PaymentRepository paymentRepository;
     private final ProductSkuRepository productSkuRepository;
     private final ProductRepository productRepository;
@@ -76,6 +85,7 @@ public class OrderService {
     public OrderService(
             OrderEntityRepository orderEntityRepository,
             OrderItemRepository orderItemRepository,
+            OrderCancelRequestRepository orderCancelRequestRepository,
             PaymentRepository paymentRepository,
             ProductSkuRepository productSkuRepository,
             ProductRepository productRepository,
@@ -88,6 +98,7 @@ public class OrderService {
             Clock clock) {
         this.orderEntityRepository = orderEntityRepository;
         this.orderItemRepository = orderItemRepository;
+        this.orderCancelRequestRepository = orderCancelRequestRepository;
         this.paymentRepository = paymentRepository;
         this.productSkuRepository = productSkuRepository;
         this.productRepository = productRepository;
@@ -129,19 +140,23 @@ public class OrderService {
         Page<OrderEntity> orders = orderEntityRepository.findByMemberIdOrderByOrderedAtDesc(memberId, pageable);
 
         List<Long> orderIds = orders.getContent().stream().map(OrderEntity::getOrderId).toList();
-        Map<Long, Long> itemCountByOrder = orderIds.isEmpty()
+        Map<Long, List<OrderItem>> itemsByOrder = orderIds.isEmpty()
                 ? Map.of()
                 : orderItemRepository.findByOrderIdIn(orderIds).stream()
-                .collect(Collectors.groupingBy(OrderItem::getOrderId, Collectors.counting()));
+                .collect(Collectors.groupingBy(OrderItem::getOrderId));
 
         List<OrderSummaryResponse> content = orders.getContent().stream()
-                .map(order -> new OrderSummaryResponse(
-                        order.getOrderId(),
-                        order.getOrderNo(),
-                        order.getOrderStatus(),
-                        order.getPaymentAmount(),
-                        order.getOrderedAt(),
-                        itemCountByOrder.getOrDefault(order.getOrderId(), 0L).intValue()))
+                .map(order -> {
+                    List<OrderItem> items = itemsByOrder.getOrDefault(order.getOrderId(), List.of());
+                    return new OrderSummaryResponse(
+                            order.getOrderId(),
+                            order.getOrderNo(),
+                            order.getOrderStatus(),
+                            order.getPaymentAmount(),
+                            order.getOrderedAt(),
+                            items.size(),
+                            OrderCancelRequestService.itemSummary(items));
+                })
                 .toList();
 
         return PageResponse.of(content, orders.getNumber(), orders.getSize(), orders.getTotalElements());
@@ -184,11 +199,25 @@ public class OrderService {
         if (previous == newStatus) {
             return toOrderResponse(order, true);
         }
+        if (previous == OrderStatus.CANCEL_REQUESTED || newStatus == OrderStatus.CANCEL_REQUESTED) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "취소 요청 중인 주문은 취소 요청 관리에서 승인 또는 거절해 주세요.");
+        }
+        if (previous == OrderStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "취소된 주문은 상태를 변경할 수 없습니다.");
+        }
 
         Instant now = clock.instant();
-        order.setOrderStatus(newStatus);
-        order.setUpdatedAt(now);
-        orderEntityRepository.save(order);
+        if (newStatus == OrderStatus.CANCELLED) {
+            if (!CANCELLABLE_STATUSES.contains(previous)) {
+                throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "배송이 시작된 주문은 취소할 수 없습니다.");
+            }
+            applyCancellation(order, previous, actorMemberId, now);
+        } else {
+            order.setOrderStatus(newStatus);
+            order.setUpdatedAt(now);
+            orderEntityRepository.save(order);
+        }
 
         auditLogService.record(
                 actorMemberId,
@@ -255,24 +284,42 @@ public class OrderService {
                 payment.getApprovedAt());
     }
 
+    /**
+     * Immediate member cancel is only for unpaid orders; paid orders go through a cancel request
+     * that an admin approves.
+     */
     @Transactional
     public OrderResponse cancelOrder(Long memberId, String orderNo) {
         OrderEntity order = requireOrderByNo(orderNo);
         requireOwner(order, memberId);
 
         OrderStatus status = order.getOrderStatus();
-        if (status != OrderStatus.PAYMENT_PENDING && status != OrderStatus.PAID) {
+        if (status == OrderStatus.PAID || status == OrderStatus.PREPARING) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "결제가 완료된 주문은 취소 요청 후 관리자 승인이 필요합니다.");
+        }
+        if (status != OrderStatus.PAYMENT_PENDING) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "취소할 수 없는 주문 상태입니다.");
         }
 
-        Instant now = clock.instant();
-        List<OrderItem> items = orderItemRepository.findByOrderId(order.getOrderId());
+        applyCancellation(order, status, memberId, clock.instant());
+        return toOrderResponse(order, true);
+    }
 
+    /**
+     * Releases reserved stock (unpaid) or restores sold stock (paid/preparing), cancels payments,
+     * and marks the order CANCELLED. {@code fromStatus} is the status before any cancel request.
+     */
+    void applyCancellation(OrderEntity order, OrderStatus fromStatus, Long actorMemberId, Instant now) {
+        if (!CANCELLABLE_STATUSES.contains(fromStatus)) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "취소할 수 없는 주문 상태입니다.");
+        }
+        List<OrderItem> items = orderItemRepository.findByOrderId(order.getOrderId());
         for (OrderItem item : items) {
-            if (status == OrderStatus.PAYMENT_PENDING) {
-                releaseReservation(item.getSkuId(), item.getQuantity(), order.getOrderNo(), memberId, now);
+            if (fromStatus == OrderStatus.PAYMENT_PENDING) {
+                releaseReservation(item.getSkuId(), item.getQuantity(), order.getOrderNo(), actorMemberId, now);
             } else {
-                restoreAfterPaidCancel(item.getSkuId(), item.getQuantity(), order.getOrderNo(), memberId, now);
+                restoreAfterPaidCancel(item.getSkuId(), item.getQuantity(), order.getOrderNo(), actorMemberId, now);
             }
             item.setStatus("CANCELLED");
         }
@@ -289,9 +336,8 @@ public class OrderService {
         order.setOrderStatus(OrderStatus.CANCELLED);
         order.setUpdatedAt(now);
         orderEntityRepository.save(order);
-        log.info("Order cancelled memberId={} orderNo={} previousStatus={}", memberId, orderNo, status);
-
-        return toOrderResponse(order, true);
+        log.info("Order cancelled actorMemberId={} orderNo={} previousStatus={}",
+                actorMemberId, order.getOrderNo(), fromStatus);
     }
 
     private OrderResponse createNewOrder(Long memberId, String idempotencyKey, CreateOrderRequest request) {
@@ -526,19 +572,19 @@ public class OrderService {
         return merged;
     }
 
-    private OrderEntity requireOrderByNo(String orderNo) {
+    OrderEntity requireOrderByNo(String orderNo) {
         return orderEntityRepository.findByOrderNo(orderNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "주문을 찾을 수 없습니다."));
     }
 
-    private boolean requireOwner(OrderEntity order, Long memberId) {
+    boolean requireOwner(OrderEntity order, Long memberId) {
         if (!order.getMemberId().equals(memberId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "본인 주문만 조회할 수 있습니다.");
         }
         return true;
     }
 
-    private OrderResponse toOrderResponse(OrderEntity order, boolean ignored) {
+    OrderResponse toOrderResponse(OrderEntity order, boolean ignored) {
         List<OrderItemResponse> items = orderItemRepository.findByOrderId(order.getOrderId()).stream()
                 .map(item -> new OrderItemResponse(
                         item.getOrderItemId(),
@@ -555,6 +601,18 @@ public class OrderService {
 
         Payment payment = paymentRepository.findByOrderId(order.getOrderId()).stream()
                 .findFirst()
+                .orElse(null);
+
+        CancelRequestInfo cancelRequest = order.getOrderId() == null
+                ? null
+                : orderCancelRequestRepository.findFirstByOrderIdOrderByRequestedAtDesc(order.getOrderId())
+                .map(r -> new CancelRequestInfo(
+                        r.getCancelRequestId(),
+                        r.getStatus(),
+                        r.getReason(),
+                        r.getRejectReason(),
+                        r.getRequestedAt(),
+                        r.getProcessedAt()))
                 .orElse(null);
 
         return new OrderResponse(
@@ -574,7 +632,8 @@ public class OrderService {
                 order.getOrderedAt(),
                 items,
                 payment == null ? null : payment.getPaymentStatus(),
-                payment == null ? null : payment.getPaymentMethod());
+                payment == null ? null : payment.getPaymentMethod(),
+                cancelRequest);
     }
 
     private record PreparedLine(

@@ -1,15 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { logout } from "@/features/auth/api";
 import type { Member } from "@/features/auth/schemas";
-
-const genderLabel: Record<"FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY", string> = {
-  FEMALE: "여성",
-  MALE: "남성",
-  OTHER: "기타",
-  PREFER_NOT_TO_SAY: "선택 안 함",
-};
 
 const providerLabel: Record<"LOCAL" | "KAKAO" | "NAVER", string> = {
   LOCAL: "이메일/아이디",
@@ -30,46 +24,48 @@ export function MypageClient({ member }: { member: Member }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <dl className="grid gap-4 rounded-xl border border-border bg-surface p-6 text-sm">
-        <Row label="아이디" value={member.loginId} />
-        <Row
-          label="로그인 방식"
-          value={providerLabel[member.authProvider ?? "LOCAL"]}
-        />
-        <Row label="이름" value={member.name} />
+    <section className="flex flex-col gap-5 rounded-xl border border-border bg-surface p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-lg font-semibold text-foreground">{member.name}님</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {member.loginId} · {providerLabel[member.authProvider ?? "LOCAL"]} 로그인
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/mypage/verify"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-brand px-4 text-sm font-medium text-white hover:bg-brand-hover"
+          >
+            개인정보 수정
+          </Link>
+          <button
+            type="button"
+            onClick={onLogout}
+            disabled={busy}
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-soft disabled:opacity-60"
+          >
+            {busy ? "로그아웃 중..." : "로그아웃"}
+          </button>
+        </div>
+      </div>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <Row label="이메일" value={member.email ?? "-"} />
-        <Row label="생년월일" value={member.birthDate ?? "-"} />
-        <Row
-          label="만 나이"
-          value={member.age == null ? "-" : `${member.age}세`}
-        />
-        <Row
-          label="성별"
-          value={member.gender ? genderLabel[member.gender] : "-"}
-        />
         <Row label="연락처" value={member.phone ?? "-"} />
-        <Row label="우편번호" value={member.postcode ?? "-"} />
-        <Row label="기본주소" value={member.address1 ?? "-"} />
-        <Row label="상세주소" value={member.address2 ?? "-"} />
+        <Row
+          label="기본 배송지"
+          value={member.address1 ? `${member.address1} ${member.address2 ?? ""}`.trim() : "-"}
+        />
       </dl>
-      <button
-        type="button"
-        onClick={onLogout}
-        disabled={busy}
-        className="inline-flex h-11 w-fit items-center justify-center rounded-xl border border-border bg-surface px-5 text-sm font-medium hover:bg-surface-soft disabled:opacity-60"
-      >
-        {busy ? "로그아웃 중..." : "로그아웃"}
-      </button>
-    </div>
+    </section>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-3">
+    <div className="grid grid-cols-[88px_1fr] gap-3">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-foreground">{value}</dd>
+      <dd className="break-words text-foreground">{value}</dd>
     </div>
   );
 }

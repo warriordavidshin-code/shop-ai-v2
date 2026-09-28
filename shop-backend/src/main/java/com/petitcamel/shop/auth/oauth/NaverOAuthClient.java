@@ -49,6 +49,19 @@ public class NaverOAuthClient {
                 .toUriString();
     }
 
+    /** Naver requires the password again with auth_type=reauthenticate. */
+    public String buildReauthorizeUrl(String state) {
+        ensureConfigured();
+        return UriComponentsBuilder.fromUriString(AUTHORIZE_URL)
+                .queryParam("client_id", properties.getNaver().getClientId())
+                .queryParam("redirect_uri", properties.callbackUrl("naver"))
+                .queryParam("response_type", "code")
+                .queryParam("state", state)
+                .queryParam("auth_type", "reauthenticate")
+                .build(true)
+                .toUriString();
+    }
+
     public SocialProfile exchange(String code, String state) {
         ensureConfigured();
         String accessToken = requestAccessToken(code, state);

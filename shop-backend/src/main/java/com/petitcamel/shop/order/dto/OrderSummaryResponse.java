@@ -11,6 +11,7 @@ public record OrderSummaryResponse(
         OrderStatus orderStatus,
         BigDecimal paymentAmount,
         Instant orderedAt,
-        int itemCount
+        int itemCount,
+        String itemSummary
 ) {
 }

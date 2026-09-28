@@ -13,6 +13,29 @@ export const orderItemSchema = z.object({
   paymentPrice: z.coerce.number().optional(),
 });
 
+export const cancelRequestInfoSchema = z.object({
+  cancelRequestId: z.number(),
+  status: z.enum(["REQUESTED", "APPROVED", "REJECTED"]),
+  reason: z.string(),
+  rejectReason: z.string().nullable().optional(),
+  requestedAt: z.string().nullable().optional(),
+  processedAt: z.string().nullable().optional(),
+});
+
+export type CancelRequestInfo = z.infer<typeof cancelRequestInfoSchema>;
+
+export const orderSummarySchema = z.object({
+  orderId: z.number().optional(),
+  orderNo: z.string(),
+  orderStatus: z.string(),
+  paymentAmount: z.coerce.number(),
+  orderedAt: z.string().nullable().optional(),
+  itemCount: z.number().optional(),
+  itemSummary: z.string().nullable().optional(),
+});
+
+export type OrderSummary = z.infer<typeof orderSummarySchema>;
+
 export const orderSchema = z.object({
   orderId: z.number().optional(),
   orderNo: z.string(),
@@ -31,6 +54,7 @@ export const orderSchema = z.object({
   items: z.array(orderItemSchema).default([]),
   paymentStatus: z.string().optional(),
   paymentMethod: z.string().optional(),
+  cancelRequest: cancelRequestInfoSchema.nullable().optional(),
 });
 
 export type Order = z.infer<typeof orderSchema>;
@@ -67,16 +91,7 @@ export async function listMyOrders(page = 0, size = 20) {
   const data = await response.json();
   return z
     .object({
-      content: z.array(
-        z.object({
-          orderId: z.number().optional(),
-          orderNo: z.string(),
-          orderStatus: z.string(),
-          paymentAmount: z.coerce.number(),
-          orderedAt: z.string().optional(),
-          itemCount: z.number().optional(),
-        }),
-      ),
+      content: z.array(orderSummarySchema),
       page: z.number(),
       size: z.number(),
       totalElements: z.number(),
@@ -96,6 +111,15 @@ export async function mockApprovePayment(orderNo: string) {
 
 export async function cancelOrder(orderNo: string) {
   const response = await shopFetch(`/orders/${orderNo}/cancel`, { method: "POST" });
+  if (!response.ok) throw await parseApiError(response);
+  return orderSchema.parse(await response.json());
+}
+
+export async function requestOrderCancel(orderNo: string, reason: string) {
+  const response = await shopFetch(`/orders/${orderNo}/cancel-request`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
   if (!response.ok) throw await parseApiError(response);
   return orderSchema.parse(await response.json());
 }

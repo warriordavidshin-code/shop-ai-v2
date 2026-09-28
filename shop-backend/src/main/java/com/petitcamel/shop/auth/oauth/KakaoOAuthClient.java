@@ -67,6 +67,19 @@ public class KakaoOAuthClient {
                 .toUriString();
     }
 
+    /** Forces the Kakao login screen again so an existing session cannot silently pass re-verification. */
+    public String buildReauthorizeUrl(String state) {
+        ensureConfigured();
+        return UriComponentsBuilder.fromUriString(AUTHORIZE_URL)
+                .queryParam("client_id", properties.getKakao().getClientId())
+                .queryParam("redirect_uri", properties.callbackUrl("kakao"))
+                .queryParam("response_type", "code")
+                .queryParam("state", state)
+                .queryParam("prompt", "login")
+                .build(true)
+                .toUriString();
+    }
+
     public SocialProfile exchange(String code) {
         ensureConfigured();
         String accessToken = requestAccessToken(code);

@@ -46,6 +46,7 @@ public class AdminDashboardService {
                 productRepository.countByStatus(ProductStatus.ON_SALE),
                 orderEntityRepository.countByOrderedAtAfter(recentSince),
                 orderEntityRepository.countByOrderStatus(OrderStatus.PAYMENT_PENDING),
-                memberRepository.count());
+                memberRepository.count(),
+                orderEntityRepository.countByOrderStatus(OrderStatus.CANCEL_REQUESTED));
     }
 }
