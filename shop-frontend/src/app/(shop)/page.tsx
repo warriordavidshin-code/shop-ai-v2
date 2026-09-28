@@ -1,5 +1,4 @@
 ﻿import Link from "next/link";
-import { BrandLogo } from "@/components/brand/BrandLogo";
 import { Container } from "@/components/ui/Container";
 import { ProductGrid } from "@/components/product/ProductCard";
 import { HomeHeroBanner } from "@/components/home/HomeHeroBanner";
@@ -112,13 +111,6 @@ export default async function HomePage() {
         <section className="flex flex-col gap-4">
           <h2 className="heading-ko text-xl text-foreground">주간 베스트</h2>
           <ProductGrid products={bestProducts.slice(0, 8)} />
-        </section>
-
-        <section className="flex flex-col items-center gap-4 py-6 text-center">
-          <p className="heading-ko max-w-xl text-xl leading-relaxed text-foreground md:text-2xl">
-            “당신의 모든 순간이, 더 아름다워지기를.”
-          </p>
-          <BrandLogo size="hero" href={null} />
         </section>
       </Container>
     </main>

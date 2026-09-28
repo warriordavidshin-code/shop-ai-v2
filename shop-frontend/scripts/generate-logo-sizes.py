@@ -10,8 +10,7 @@ img = Image.open(src).convert("RGBA")
 sizes = {
     "header": 36,
     "auth": 44,
-    "footer": 32,
-    "hero": 40,
+    "footer": 24,
     "admin": 28,
 }
 

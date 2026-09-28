@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type BrandLogoSize = "header" | "auth" | "footer" | "hero" | "admin";
+type BrandLogoSize = "header" | "auth" | "footer" | "admin";
 
 type BrandLogoProps = {
   href?: string | null;
@@ -29,15 +29,9 @@ const logoBySize: Record<
   },
   footer: {
     src: "/brand/logo-footer@3x.png",
-    width: 678,
-    height: 96,
-    className: "h-7 w-auto md:h-8",
-  },
-  hero: {
-    src: "/brand/logo-hero@3x.png",
-    width: 847,
-    height: 120,
-    className: "h-8 w-auto md:h-10",
+    width: 508,
+    height: 72,
+    className: "h-[21px] w-auto md:h-6",
   },
   admin: {
     src: "/brand/logo-admin@3x.png",
