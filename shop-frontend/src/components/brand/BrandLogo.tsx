@@ -19,31 +19,31 @@ const logoBySize: Record<
     src: "/brand/logo-header@3x.png",
     width: 763,
     height: 108,
-    className: "h-8 w-auto md:h-9",
+    className: "h-7 w-auto lg:h-9",
   },
   auth: {
     src: "/brand/logo-auth@3x.png",
-    width: 1186,
-    height: 168,
-    className: "h-11 w-auto md:h-14",
+    width: 932,
+    height: 132,
+    className: "h-9 w-auto md:h-11",
   },
   footer: {
     src: "/brand/logo-footer@3x.png",
-    width: 847,
-    height: 120,
-    className: "h-9 w-auto md:h-10",
-  },
-  hero: {
-    src: "/brand/logo-hero@3x.png",
-    width: 1017,
-    height: 144,
-    className: "h-10 w-auto md:h-12",
-  },
-  admin: {
-    src: "/brand/logo-admin@3x.png",
     width: 678,
     height: 96,
     className: "h-7 w-auto md:h-8",
+  },
+  hero: {
+    src: "/brand/logo-hero@3x.png",
+    width: 847,
+    height: 120,
+    className: "h-8 w-auto md:h-10",
+  },
+  admin: {
+    src: "/brand/logo-admin@3x.png",
+    width: 593,
+    height: 84,
+    className: "h-6 w-auto md:h-7",
   },
 };
 

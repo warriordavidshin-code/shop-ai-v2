@@ -6,13 +6,13 @@ out_dir = Path(r"E:\work\workspace\shop-ai\shop-ai-v2\shop-frontend\public\brand
 out_dir.mkdir(parents=True, exist_ok=True)
 img = Image.open(src).convert("RGBA")
 
-# css display height -> export at 3x for retina
+# largest css display height per surface -> export at 3x for retina
 sizes = {
     "header": 36,
-    "auth": 56,
-    "footer": 40,
-    "hero": 48,
-    "admin": 32,
+    "auth": 44,
+    "footer": 32,
+    "hero": 40,
+    "admin": 28,
 }
 
 w0, h0 = img.size

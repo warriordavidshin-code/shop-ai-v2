@@ -118,7 +118,7 @@ export default async function HomePage() {
           <p className="heading-ko max-w-xl text-xl leading-relaxed text-foreground md:text-2xl">
             “당신의 모든 순간이, 더 아름다워지기를.”
           </p>
-          <BrandLogo size="footer" href={null} />
+          <BrandLogo size="hero" href={null} />
         </section>
       </Container>
     </main>
