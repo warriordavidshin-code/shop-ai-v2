@@ -74,6 +74,9 @@ public class SocialAuthService {
     }
 
     private Member createSocialMember(SocialProfile profile) {
+        if (profile.provider() == AuthProvider.KAKAO) {
+            KakaoOAuthClient.requireSignupConsents(profile);
+        }
         Instant now = clock.instant();
         Member member = new Member();
         member.setLoginId(generateLoginId(profile.provider()));

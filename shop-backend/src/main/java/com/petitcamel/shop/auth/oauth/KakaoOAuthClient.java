@@ -63,8 +63,6 @@ public class KakaoOAuthClient {
                 .queryParam("response_type", "code")
                 .queryParam("state", state)
                 .queryParam("scope", KAKAO_SCOPES)
-                // Force consent so required profile fields are collected on first signup.
-                .queryParam("prompt", "consent")
                 .build(true)
                 .toUriString();
     }
@@ -138,16 +136,6 @@ public class KakaoOAuthClient {
         name = firstNonBlank(name, shipping.receiverName());
         phone = firstNonBlank(phone, shipping.receiverPhone());
 
-        requireKakaoConsentFields(
-                email,
-                name,
-                gender,
-                birthyear,
-                ageRange,
-                birthDate,
-                phone,
-                shipping);
-
         return new SocialProfile(
                 AuthProvider.KAKAO,
                 providerUserId,
@@ -173,9 +161,7 @@ public class KakaoOAuthClient {
                     .body(JsonNode.class);
         } catch (Exception ex) {
             log.warn("Kakao shipping address fetch failed: {}", ex.getMessage());
-            throw new BusinessException(
-                    ErrorCode.BUSINESS_RULE_VIOLATION,
-                    "카카오 필수 동의 항목이 부족합니다: 배송지정보(shipping_address). 카카오 동의 화면에서 모두 허용한 뒤 다시 시도해 주세요.");
+            return ShippingAddress.empty();
         }
         if (response == null) {
             return ShippingAddress.empty();
@@ -201,32 +187,28 @@ public class KakaoOAuthClient {
         return ShippingAddress.from(selected);
     }
 
-    private void requireKakaoConsentFields(
-            String email,
-            String name,
-            Gender gender,
-            String birthyear,
-            String ageRange,
-            LocalDate birthDate,
-            String phone,
-            ShippingAddress shipping) {
+    /**
+     * Checked only when creating a new member; existing members must still be able to log in
+     * even if Kakao no longer returns a field (e.g. shipping address removed on Kakao's side).
+     */
+    static void requireSignupConsents(SocialProfile profile) {
         List<String> missing = new ArrayList<>();
-        if (email == null || email.isBlank()) {
+        if (isBlank(profile.email())) {
             missing.add("이메일(account_email)");
         }
-        if (name == null || name.isBlank()) {
+        if (isBlank(profile.name())) {
             missing.add("이름(name)");
         }
-        if (gender == null || gender == Gender.PREFER_NOT_TO_SAY) {
+        if (profile.gender() == null || profile.gender() == Gender.PREFER_NOT_TO_SAY) {
             missing.add("성별(gender)");
         }
-        if ((birthyear == null || birthyear.isBlank()) && (ageRange == null || ageRange.isBlank()) && birthDate == null) {
+        if (profile.birthDate() == null && isBlank(profile.ageRange())) {
             missing.add("출생연도/연령대(birthyear, age_range)");
         }
-        if (phone == null || phone.isBlank()) {
+        if (isBlank(profile.phone())) {
             missing.add("전화번호(phone_number)");
         }
-        if (!shipping.isPresent()) {
+        if (isBlank(profile.address1()) && isBlank(profile.postcode())) {
             missing.add("배송지정보(shipping_address)");
         }
         if (!missing.isEmpty()) {
@@ -235,6 +217,10 @@ public class KakaoOAuthClient {
                     "카카오 필수 동의 항목이 부족합니다: " + String.join(", ", missing)
                             + ". 카카오 동의 화면에서 모두 허용한 뒤 다시 시도해 주세요.");
         }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private void ensureConfigured() {

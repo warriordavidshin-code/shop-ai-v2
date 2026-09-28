@@ -129,6 +129,79 @@ class SocialAuthServiceTest {
     }
 
     @Test
+    void rejectsNewKakaoSignupWithoutShippingAddress() {
+        SocialProfile profile = new SocialProfile(
+                AuthProvider.KAKAO,
+                "12345",
+                "user@example.com",
+                "홍길동",
+                null,
+                LocalDate.of(1990, 1, 1),
+                Gender.FEMALE,
+                "01012345678",
+                "30~39",
+                null,
+                null,
+                null);
+
+        when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> socialAuthService.loginOrSignup(profile))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("필수 동의")
+                .hasMessageContaining("배송지정보")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getCode())
+                        .isEqualTo(ErrorCode.BUSINESS_RULE_VIOLATION));
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    void existingKakaoMemberLogsInEvenWhenKakaoOmitsProfileFields() {
+        Member existing = new Member();
+        existing.setMemberId(5L);
+        existing.setLoginId("kakao_user");
+        existing.setAuthProvider(AuthProvider.KAKAO);
+        existing.setProviderUserId("12345");
+        existing.setName("홍길동");
+        existing.setEmail("user@example.com");
+        existing.setGender(Gender.FEMALE);
+        existing.setBirthDate(LocalDate.of(1990, 1, 1));
+        existing.setPhone("01012345678");
+        existing.setPostcode("06236");
+        existing.setAddress1("서울특별시 강남구 테헤란로 123");
+
+        SocialProfile profile = new SocialProfile(
+                AuthProvider.KAKAO,
+                "12345",
+                "user@example.com",
+                "홍길동",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        when(memberRepository.findByAuthProviderAndProviderUserId(AuthProvider.KAKAO, "12345"))
+                .thenReturn(Optional.of(existing));
+        when(authService.completeAuthenticatedSession(existing)).thenReturn(
+                new AuthService.AuthResult(
+                        new MemberResponse(5L, "kakao_user", "user@example.com", "홍길동", null, null, null,
+                                null, null, null, null, MemberRole.CUSTOMER, AuthProvider.KAKAO, null),
+                        "access",
+                        "refresh"));
+
+        SocialAuthService.SocialAuthOutcome outcome = socialAuthService.loginOrSignup(profile);
+
+        assertThat(outcome.newlyRegistered()).isFalse();
+        assertThat(outcome.authResult().accessToken()).isEqualTo("access");
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
     void reusesExistingNaverMember() {
         Member existing = new Member();
         existing.setMemberId(9L);
