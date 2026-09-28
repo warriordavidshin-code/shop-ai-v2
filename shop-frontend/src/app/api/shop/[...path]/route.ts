@@ -77,6 +77,10 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
   if (csrf) {
     headers.set("x-xsrf-token", csrf);
   }
+  const idempotencyKey = request.headers.get("idempotency-key");
+  if (idempotencyKey) {
+    headers.set("idempotency-key", idempotencyKey);
+  }
 
   const init: RequestInit = {
     method: request.method,
