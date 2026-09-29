@@ -124,6 +124,46 @@ public class AdminProductService {
         return toAdminResponse(productRepository.save(product));
     }
 
+    @Transactional
+    public AdminProductResponse addSku(Long productId, AdminProductRequest.SkuRequest request) {
+        Product product = requireProduct(productId);
+        String skuCode = request.skuCode().trim();
+        if (productSkuRepository.findBySkuCode(skuCode).isPresent()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 SKU 코드입니다.");
+        }
+        String color = request.color().trim();
+        String size = request.size().trim();
+        boolean duplicateOption = productSkuRepository.findByProductId(productId).stream()
+                .anyMatch(sku -> sku.getColor().equalsIgnoreCase(color) && sku.getSize().equalsIgnoreCase(size));
+        if (duplicateOption) {
+            throw new BusinessException(ErrorCode.CONFLICT, "같은 색상/사이즈 옵션이 이미 있습니다.");
+        }
+
+        Instant now = clock.instant();
+        ProductSku sku = new ProductSku();
+        sku.setProductId(productId);
+        sku.setSkuCode(skuCode);
+        sku.setColor(color);
+        sku.setSize(size);
+        sku.setAdditionalPrice(request.additionalPrice() == null ? BigDecimal.ZERO : request.additionalPrice());
+        sku.setStatus(request.status() == null ? ProductStatus.ON_SALE : request.status());
+        sku.setCreatedAt(now);
+        sku.setUpdatedAt(now);
+        ProductSku savedSku = productSkuRepository.save(sku);
+
+        Inventory inventory = new Inventory();
+        inventory.setSkuId(savedSku.getSkuId());
+        inventory.setStockQuantity(request.stockQuantity() == null ? 0 : request.stockQuantity());
+        inventory.setReservedQuantity(0);
+        inventory.setReorderPoint(5);
+        inventory.setVersion(0L);
+        inventory.setUpdatedAt(now);
+        inventoryRepository.save(inventory);
+
+        product.setUpdatedAt(now);
+        return toAdminResponse(productRepository.save(product));
+    }
+
     private void upsertSkus(Long productId, List<AdminProductRequest.SkuRequest> skuRequests, Instant now, boolean creating) {
         if (skuRequests == null) {
             if (creating) {
@@ -210,6 +250,9 @@ public class AdminProductService {
     }
 
     private void applyProductFields(Product product, AdminProductRequest request) {
+        if (request.salePrice().compareTo(request.normalPrice()) > 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "판매가는 정상가보다 클 수 없습니다.");
+        }
         product.setCategoryId(request.categoryId());
         product.setProductName(request.productName().trim());
         product.setBrandName(request.brandName().trim());

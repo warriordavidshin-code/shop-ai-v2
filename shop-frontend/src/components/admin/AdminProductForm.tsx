@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { resolveMediaUrl } from "@/lib/media";
+import { discountRateFrom, salePriceFromRate, validatePrices } from "@/features/admin/pricing";
 
 function getCsrfToken(): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -50,8 +51,30 @@ export function AdminProductForm({
     description: initial?.description ?? "",
     normalPrice: String(initial?.normalPrice ?? 59000),
     salePrice: String(initial?.salePrice ?? 49000),
+    discountRate: String(discountRateFrom(initial?.normalPrice ?? 59000, initial?.salePrice ?? 49000) ?? 0),
     status: initial?.status ?? "ON_SALE",
   });
+
+  function onNormalPriceChange(normalPrice: string) {
+    setForm((prev) => {
+      const sale = salePriceFromRate(normalPrice, prev.discountRate);
+      return { ...prev, normalPrice, salePrice: sale === null ? prev.salePrice : String(sale) };
+    });
+  }
+
+  function onDiscountRateChange(discountRate: string) {
+    setForm((prev) => {
+      const sale = salePriceFromRate(prev.normalPrice, discountRate);
+      return { ...prev, discountRate, salePrice: sale === null ? prev.salePrice : String(sale) };
+    });
+  }
+
+  function onSalePriceChange(salePrice: string) {
+    setForm((prev) => {
+      const rate = discountRateFrom(prev.normalPrice, salePrice);
+      return { ...prev, salePrice, discountRate: rate === null ? prev.discountRate : String(rate) };
+    });
+  }
   const [images, setImages] = useState<ImageDraft[]>(
     (initial?.images ?? []).map((img, index) => ({
       imageUrl: img.imageUrl,
@@ -139,6 +162,12 @@ export function AdminProductForm({
     e.preventDefault();
     setBusy(true);
     setError(null);
+    const priceError = validatePrices(form.normalPrice, form.salePrice);
+    if (priceError) {
+      setError(priceError);
+      setBusy(false);
+      return;
+    }
     if (images.length > 0 && images.filter((img) => img.imageType === "MAIN").length !== 1) {
       setError("대표 이미지를 1개 선택해 주세요.");
       setBusy(false);
@@ -194,8 +223,6 @@ export function AdminProductForm({
           ["brandName", "브랜드"],
           ["categoryId", "카테고리 ID"],
           ["summary", "요약"],
-          ["normalPrice", "정상가"],
-          ["salePrice", "판매가"],
         ] as const
       ).map(([key, label]) => (
         <label key={key} className="flex flex-col gap-1.5 text-sm">
@@ -208,6 +235,53 @@ export function AdminProductForm({
           />
         </label>
       ))}
+
+      <div className="flex flex-col gap-2">
+        <div className="grid gap-3 sm:grid-cols-[1fr_8rem_1fr]">
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">정상가 (원)</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              className="h-11 rounded-xl border border-border bg-surface px-3"
+              value={form.normalPrice}
+              onChange={(e) => onNormalPriceChange(e.target.value)}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">할인율 (%)</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              inputMode="numeric"
+              className="h-11 rounded-xl border border-border bg-surface px-3"
+              value={form.discountRate}
+              onChange={(e) => onDiscountRateChange(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">판매가 (원)</span>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              className="h-11 rounded-xl border border-border bg-surface px-3"
+              value={form.salePrice}
+              onChange={(e) => onSalePriceChange(e.target.value)}
+              required
+            />
+          </label>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          정상가나 할인율을 바꾸면 판매가가 자동 계산됩니다. 판매가를 직접 수정하면 할인율이 다시 계산됩니다.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2 text-sm">
         <span className="font-medium">상세 설명 (CKEditor)</span>

@@ -53,6 +53,14 @@ public class AdminProductController {
         return adminProductService.updateProduct(productId, request);
     }
 
+    @PostMapping("/{productId}/skus")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminProductResponse addSku(
+            @PathVariable Long productId,
+            @Valid @RequestBody AdminProductRequest.SkuRequest request) {
+        return adminProductService.addSku(productId, request);
+    }
+
     @PatchMapping("/{productId}/status")
     public AdminProductResponse updateStatus(
             @PathVariable Long productId,

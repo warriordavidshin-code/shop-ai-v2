@@ -10,6 +10,7 @@ import com.petitcamel.shop.inventory.domain.MovementType;
 import com.petitcamel.shop.inventory.dto.InventoryAdjustRequest;
 import com.petitcamel.shop.inventory.dto.InventoryMovementResponse;
 import com.petitcamel.shop.inventory.dto.InventoryResponse;
+import com.petitcamel.shop.inventory.dto.InventoryStockRequest;
 import com.petitcamel.shop.inventory.repository.InventoryMovementRepository;
 import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.product.repository.ProductSkuRepository;
@@ -101,6 +102,22 @@ public class InventoryService {
                 actorMemberId);
 
         return toResponse(inventory);
+    }
+
+    /** Sets the on-hand stock to an absolute value; recorded as an adjustment of the difference. */
+    @Transactional
+    public InventoryResponse setStock(Long skuId, InventoryStockRequest request, Long actorMemberId) {
+        Inventory inventory = inventoryRepository.findBySkuId(skuId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "재고 정보를 찾을 수 없습니다."));
+        int current = inventory.getStockQuantity() == null ? 0 : inventory.getStockQuantity();
+        int delta = request.stockQuantity() - current;
+        if (delta == 0) {
+            return toResponse(inventory);
+        }
+        String reason = request.reason() == null || request.reason().isBlank()
+                ? "관리자 재고 수정 " + current + " → " + request.stockQuantity()
+                : request.reason().trim();
+        return adjust(skuId, new InventoryAdjustRequest(delta, reason), actorMemberId);
     }
 
     @Transactional(readOnly = true)

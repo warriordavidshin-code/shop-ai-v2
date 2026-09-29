@@ -4,6 +4,7 @@ import com.petitcamel.shop.product.domain.ImageType;
 import com.petitcamel.shop.product.domain.ProductStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -68,7 +69,7 @@ public record AdminProductRequest(
 
             ProductStatus status,
 
-            Integer stockQuantity
+            @Min(value = 0, message = "재고 수량은 0 이상이어야 합니다.") Integer stockQuantity
     ) {
     }
 }

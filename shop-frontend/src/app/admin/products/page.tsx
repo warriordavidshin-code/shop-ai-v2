@@ -1,46 +1,18 @@
-﻿import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+﻿import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/ui/Container";
-import { z } from "zod";
+import { AdminProductStockTable } from "@/components/admin/AdminProductStockTable";
+import { AdminProductPager } from "@/components/admin/AdminProductPager";
+import { loadAdminProductPage } from "@/features/admin/loadProducts";
 
-async function fetchAdminProducts() {
-  const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8080";
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore
-    .getAll()
-    .map((c) => `${c.name}=${c.value}`)
-    .join("; ");
-  const response = await fetch(`${backendUrl}/api/admin/products`, {
-    headers: cookieHeader ? { cookie: cookieHeader } : {},
-    cache: "no-store",
-  });
-  if (response.status === 401 || response.status === 403) {
-    return null;
-  }
-  if (!response.ok) {
-    return [];
-  }
-  const data = await response.json();
-  const parsed = z
-    .object({
-      content: z.array(
-        z.object({
-          productId: z.number(),
-          productName: z.string(),
-          brandName: z.string().optional(),
-          status: z.string(),
-          salePrice: z.coerce.number().optional(),
-        }),
-      ),
-    })
-    .parse(data);
-  return parsed.content;
-}
-
-export default async function AdminProductsPage() {
-  const products = await fetchAdminProducts();
-  if (products === null) {
+export default async function AdminProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page } = await searchParams;
+  const data = await loadAdminProductPage(Number(page ?? 0));
+  if (data === null) {
     redirect("/login?next=/admin/products");
   }
 
@@ -48,7 +20,12 @@ export default async function AdminProductsPage() {
     <main className="py-10">
       <Container className="flex flex-col gap-6">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="heading-ko text-2xl">상품 관리</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="heading-ko text-2xl">상품 관리</h1>
+            <p className="text-sm text-muted-foreground">
+              재고 칸을 눌러 옵션별 재고 수량을 입력하고 저장할 수 있습니다. 총 {data.totalElements}개 상품
+            </p>
+          </div>
           <Link
             href="/admin/products/new"
             className="inline-flex h-11 items-center rounded-xl bg-brand px-4 text-sm font-medium text-white"
@@ -56,35 +33,8 @@ export default async function AdminProductsPage() {
             상품 등록
           </Link>
         </div>
-        <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-surface-soft text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">ID</th>
-                <th className="px-4 py-3">상품명</th>
-                <th className="px-4 py-3">상태</th>
-                <th className="px-4 py-3">편집</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((product) => (
-                <tr key={product.productId} className="border-t border-border">
-                  <td className="px-4 py-3">{product.productId}</td>
-                  <td className="px-4 py-3">{product.productName}</td>
-                  <td className="px-4 py-3">{product.status}</td>
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/admin/products/${product.productId}/edit`}
-                      className="text-brand hover:underline"
-                    >
-                      수정
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdminProductStockTable key={data.page} initialProducts={data.content} />
+        <AdminProductPager basePath="/admin/products" page={data.page} totalPages={data.totalPages} />
       </Container>
     </main>
   );

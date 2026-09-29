@@ -4,6 +4,7 @@ import com.petitcamel.shop.common.dto.PageResponse;
 import com.petitcamel.shop.inventory.dto.InventoryAdjustRequest;
 import com.petitcamel.shop.inventory.dto.InventoryMovementResponse;
 import com.petitcamel.shop.inventory.dto.InventoryResponse;
+import com.petitcamel.shop.inventory.dto.InventoryStockRequest;
 import com.petitcamel.shop.inventory.service.InventoryService;
 import com.petitcamel.shop.security.MemberPrincipal;
 import jakarta.validation.Valid;
@@ -11,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,6 +35,15 @@ public class AdminInventoryController {
             @AuthenticationPrincipal MemberPrincipal principal) {
         Long actorId = principal == null ? null : principal.getMemberId();
         return inventoryService.adjust(skuId, request, actorId);
+    }
+
+    @PutMapping("/inventories/{skuId}/stock")
+    public InventoryResponse setStock(
+            @PathVariable Long skuId,
+            @Valid @RequestBody InventoryStockRequest request,
+            @AuthenticationPrincipal MemberPrincipal principal) {
+        Long actorId = principal == null ? null : principal.getMemberId();
+        return inventoryService.setStock(skuId, request, actorId);
     }
 
     @GetMapping("/inventory-movements")
