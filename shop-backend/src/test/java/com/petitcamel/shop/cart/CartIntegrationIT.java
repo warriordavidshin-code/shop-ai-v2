@@ -2,6 +2,7 @@ package com.petitcamel.shop.cart;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.petitcamel.shop.common.util.DeliveryFeePolicy;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.math.BigDecimal;
 import java.util.Map;
 import java.util.UUID;
 
@@ -85,8 +87,16 @@ class CartIntegrationIT {
                 .andExpect(jsonPath("$.items[0].availableQuantity").exists())
                 .andExpect(jsonPath("$.items[0].lineTotal").exists())
                 .andExpect(jsonPath("$.productAmount").exists())
-                .andExpect(jsonPath("$.deliveryAmount").value(3000))
-                .andExpect(jsonPath("$.paymentAmount").exists());
+                .andExpect(jsonPath("$.deliveryAmount").exists())
+                .andExpect(jsonPath("$.paymentAmount").exists())
+                .andExpect(result -> {
+                    JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString());
+                    BigDecimal productAmount = new BigDecimal(body.get("productAmount").asText());
+                    BigDecimal deliveryAmount = new BigDecimal(body.get("deliveryAmount").asText());
+                    assertThat(deliveryAmount).isEqualByComparingTo(DeliveryFeePolicy.feeFor(productAmount));
+                    assertThat(new BigDecimal(body.get("paymentAmount").asText()))
+                            .isEqualByComparingTo(productAmount.add(deliveryAmount));
+                });
 
         mockMvc.perform(get("/api/cart")
                         .cookie(new Cookie("access_token", accessToken)))

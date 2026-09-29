@@ -11,6 +11,7 @@ import com.petitcamel.shop.cart.repository.CartItemRepository;
 import com.petitcamel.shop.cart.repository.CartRepository;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
+import com.petitcamel.shop.common.util.DeliveryFeePolicy;
 import com.petitcamel.shop.inventory.domain.Inventory;
 import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.product.domain.Product;
@@ -37,8 +38,6 @@ import java.util.stream.Collectors;
 public class CartService {
 
     private static final Logger log = LoggerFactory.getLogger(CartService.class);
-
-    public static final BigDecimal DELIVERY_FEE = BigDecimal.valueOf(3000);
 
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
@@ -220,9 +219,7 @@ public class CartService {
                     lineTotal));
         }
 
-        BigDecimal deliveryAmount = productAmount.compareTo(BigDecimal.ZERO) > 0
-                ? DELIVERY_FEE
-                : BigDecimal.ZERO;
+        BigDecimal deliveryAmount = DeliveryFeePolicy.feeFor(productAmount);
         return new CartResponse(responses, productAmount, deliveryAmount, productAmount.add(deliveryAmount));
     }
 

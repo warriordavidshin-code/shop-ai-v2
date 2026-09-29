@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { DeliveryFeeRow, FreeShippingNotice } from "@/components/orders/DeliveryFee";
 import { formatKrw } from "@/lib/format";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -128,10 +129,8 @@ export function CartClient() {
           <span>상품금액</span>
           <span className="tabular-nums">{formatKrw(cart.productAmount)}원</span>
         </div>
-        <div className="flex justify-between py-1">
-          <span>배송비</span>
-          <span className="tabular-nums">{formatKrw(cart.deliveryAmount)}원</span>
-        </div>
+        <DeliveryFeeRow productAmount={cart.productAmount} deliveryAmount={cart.deliveryAmount} />
+        <FreeShippingNotice productAmount={cart.productAmount} className="pb-1" />
         <div className="mt-2 flex justify-between border-t border-border pt-3 text-base font-semibold">
           <span>결제금액(예상)</span>
           <span className="tabular-nums">{formatKrw(cart.paymentAmount)}원</span>

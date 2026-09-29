@@ -1,5 +1,6 @@
 ﻿import { z } from "zod";
 import { parseApiError, shopFetch } from "@/lib/api/client";
+import { deliveryFeeFor } from "@/features/orders/delivery";
 
 export const cartItemSchema = z.object({
   cartItemId: z.number(),
@@ -89,7 +90,7 @@ export async function mergeGuestCart() {
 
 export function cartTotals(items: { unitPrice: number; quantity: number }[]) {
   const productAmount = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-  const deliveryAmount = productAmount > 0 ? 3000 : 0;
+  const deliveryAmount = deliveryFeeFor(productAmount);
   return {
     productAmount,
     deliveryAmount,

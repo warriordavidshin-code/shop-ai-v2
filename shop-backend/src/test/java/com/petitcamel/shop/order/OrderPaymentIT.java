@@ -90,7 +90,7 @@ class OrderPaymentIT {
     void createOrderSuccessWithServerCalculatedAmount() throws Exception {
         int quantity = 2;
         BigDecimal productAmount = UNIT_PRICE.multiply(BigDecimal.valueOf(quantity));
-        BigDecimal delivery = new BigDecimal("3000.00");
+        BigDecimal delivery = BigDecimal.ZERO;
         BigDecimal paymentAmount = productAmount.add(delivery);
 
         MvcResult result = mockMvc.perform(post("/api/orders")
@@ -127,6 +127,23 @@ class OrderPaymentIT {
                 "SELECT COUNT(*) FROM inventory_movement WHERE sku_id = ? AND movement_type = 'RESERVATION'",
                 Integer.class, SKU_ID);
         assertThat(reservationMovements).isEqualTo(1);
+    }
+
+    @Test
+    void orderBelowFreeShippingThresholdPaysDeliveryFee() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                        .cookie(new Cookie("access_token", accessToken))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(orderBody(SKU_ID, 1)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(new BigDecimal(body.get("deliveryAmount").asText())).isEqualByComparingTo("3000");
+        assertThat(new BigDecimal(body.get("paymentAmount").asText()))
+                .isEqualByComparingTo(UNIT_PRICE.add(new BigDecimal("3000")));
     }
 
     @Test

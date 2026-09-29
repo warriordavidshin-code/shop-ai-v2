@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { DeliveryFeeRow } from "@/components/orders/DeliveryFee";
 import { OrderCancelPanel } from "@/components/orders/OrderCancelPanel";
+import { FREE_SHIPPING_NOTICE } from "@/features/orders/delivery";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { orderSchema } from "@/features/orders/api";
 import { formatDateTime } from "@/features/orders/status";
@@ -57,15 +59,17 @@ export default async function OrderDetailPage({ params }: { params: Params }) {
             <dt className="text-muted-foreground">상품금액</dt>
             <dd className="tabular-nums">{formatKrw(order.totalProductAmount)}원</dd>
           </div>
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">배송비</dt>
-            <dd className="tabular-nums">{formatKrw(order.deliveryAmount)}원</dd>
-          </div>
+          <DeliveryFeeRow
+            as="dl-row"
+            productAmount={order.totalProductAmount - order.discountAmount}
+            deliveryAmount={order.deliveryAmount}
+          />
           <div className="flex justify-between font-semibold">
             <dt>결제금액</dt>
             <dd className="tabular-nums">{formatKrw(order.paymentAmount)}원</dd>
           </div>
         </dl>
+        <p className="mt-2 text-xs text-muted-foreground">{FREE_SHIPPING_NOTICE}</p>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 text-sm">

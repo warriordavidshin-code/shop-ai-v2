@@ -3,11 +3,11 @@ package com.petitcamel.shop.order.service;
 import com.petitcamel.shop.admin.dto.AdminOrderSummaryResponse;
 import com.petitcamel.shop.cart.repository.CartItemRepository;
 import com.petitcamel.shop.cart.repository.CartRepository;
-import com.petitcamel.shop.cart.service.CartService;
 import com.petitcamel.shop.common.dto.PageResponse;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.service.AuditLogService;
+import com.petitcamel.shop.common.util.DeliveryFeePolicy;
 import com.petitcamel.shop.inventory.domain.Inventory;
 import com.petitcamel.shop.inventory.domain.InventoryMovement;
 import com.petitcamel.shop.inventory.domain.MovementType;
@@ -389,9 +389,7 @@ public class OrderService {
         }
 
         BigDecimal discountAmount = BigDecimal.ZERO;
-        BigDecimal deliveryAmount = productAmount.compareTo(BigDecimal.ZERO) > 0
-                ? CartService.DELIVERY_FEE
-                : BigDecimal.ZERO;
+        BigDecimal deliveryAmount = DeliveryFeePolicy.feeFor(productAmount.subtract(discountAmount));
         BigDecimal paymentAmount = productAmount.subtract(discountAmount).add(deliveryAmount);
 
         for (PreparedLine line : lines) {
