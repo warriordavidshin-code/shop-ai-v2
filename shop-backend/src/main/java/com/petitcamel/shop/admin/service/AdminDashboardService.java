@@ -7,6 +7,8 @@ import com.petitcamel.shop.order.domain.OrderStatus;
 import com.petitcamel.shop.order.repository.OrderEntityRepository;
 import com.petitcamel.shop.product.domain.ProductStatus;
 import com.petitcamel.shop.product.repository.ProductRepository;
+import com.petitcamel.shop.shipping.domain.ReturnStatus;
+import com.petitcamel.shop.shipping.repository.ReturnRequestRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ public class AdminDashboardService {
     private final ProductRepository productRepository;
     private final OrderEntityRepository orderEntityRepository;
     private final MemberRepository memberRepository;
+    private final ReturnRequestRepository returnRequestRepository;
+    private final AdminOrderQueryService adminOrderQueryService;
     private final Clock clock;
 
     public AdminDashboardService(
@@ -30,11 +34,15 @@ public class AdminDashboardService {
             ProductRepository productRepository,
             OrderEntityRepository orderEntityRepository,
             MemberRepository memberRepository,
+            ReturnRequestRepository returnRequestRepository,
+            AdminOrderQueryService adminOrderQueryService,
             Clock clock) {
         this.inventoryRepository = inventoryRepository;
         this.productRepository = productRepository;
         this.orderEntityRepository = orderEntityRepository;
         this.memberRepository = memberRepository;
+        this.returnRequestRepository = returnRequestRepository;
+        this.adminOrderQueryService = adminOrderQueryService;
         this.clock = clock;
     }
 
@@ -47,6 +55,11 @@ public class AdminDashboardService {
                 orderEntityRepository.countByOrderedAtAfter(recentSince),
                 orderEntityRepository.countByOrderStatus(OrderStatus.PAYMENT_PENDING),
                 memberRepository.count(),
-                orderEntityRepository.countByOrderStatus(OrderStatus.CANCEL_REQUESTED));
+                orderEntityRepository.countByOrderStatus(OrderStatus.CANCEL_REQUESTED),
+                orderEntityRepository.countByOrderedAtGreaterThanEqual(adminOrderQueryService.startOfToday()),
+                orderEntityRepository.countByOrderStatusIn(AdminOrderQueryService.READY_STATUSES),
+                orderEntityRepository.countByOrderStatus(OrderStatus.SHIPPED),
+                orderEntityRepository.countByOrderStatus(OrderStatus.DELIVERED),
+                returnRequestRepository.countByReturnStatusIn(ReturnStatus.OPEN));
     }
 }

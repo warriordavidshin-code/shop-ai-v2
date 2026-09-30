@@ -49,6 +49,17 @@ public class Payment {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "refunded_amount", precision = 15, scale = 2)
+    private BigDecimal refundedAmount;
+
+    public BigDecimal getRefundedAmount() {
+        return refundedAmount;
+    }
+
+    public void setRefundedAmount(BigDecimal refundedAmount) {
+        this.refundedAmount = refundedAmount;
+    }
+
     public Long getPaymentId() {
         return paymentId;
     }

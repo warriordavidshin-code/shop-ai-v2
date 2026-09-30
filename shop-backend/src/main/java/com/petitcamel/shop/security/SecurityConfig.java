@@ -89,6 +89,8 @@ public class SecurityConfig {
                                 "/api/products",
                                 "/api/products/**",
                                 "/api/hero-banners",
+                                "/api/shipping/policy",
+                                "/api/shipping/quote",
                                 "/uploads/**"
                         ).permitAll()
                         .requestMatchers("/api/members/me/**").authenticated()

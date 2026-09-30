@@ -6,6 +6,11 @@ public record AdminDashboardResponse(
         long recentOrderCount,
         long pendingPaymentCount,
         long memberCount,
-        long cancelRequestCount
+        long cancelRequestCount,
+        long todayOrderCount,
+        long shippingReadyCount,
+        long shippingInTransitCount,
+        long deliveredCount,
+        long returnRequestCount
 ) {
 }

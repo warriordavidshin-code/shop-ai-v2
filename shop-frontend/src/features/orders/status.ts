@@ -7,6 +7,8 @@ export const ORDER_STATUS_LABELS: Record<string, string> = {
   DELIVERED: "배송 완료",
   CANCEL_REQUESTED: "취소 요청중",
   CANCELLED: "주문 취소",
+  RETURN_REQUESTED: "반품 진행중",
+  RETURNED: "반품 완료",
 };
 
 export const CANCEL_REQUEST_STATUS_LABELS: Record<string, string> = {
@@ -41,8 +43,10 @@ export function orderStatusTone(status: string): "neutral" | "brand" | "warning"
       return "brand";
     case "CANCEL_REQUESTED":
     case "PAYMENT_PENDING":
+    case "RETURN_REQUESTED":
       return "warning";
     case "CANCELLED":
+    case "RETURNED":
       return "muted";
     default:
       return "neutral";

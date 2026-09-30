@@ -151,7 +151,7 @@ export function OrderCancelPanel({ orderNo, orderStatus, cancelRequest }: Props)
   } else {
     body = (
       <p className="text-sm text-muted-foreground">
-        배송이 시작된 주문은 취소할 수 없습니다. 반품·교환은 고객센터로 문의해 주세요.
+        배송이 시작된 주문은 취소할 수 없습니다. 배송이 완료되면 이 화면에서 반품을 신청할 수 있습니다.
       </p>
     );
   }

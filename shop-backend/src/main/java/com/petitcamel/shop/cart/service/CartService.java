@@ -11,7 +11,6 @@ import com.petitcamel.shop.cart.repository.CartItemRepository;
 import com.petitcamel.shop.cart.repository.CartRepository;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
-import com.petitcamel.shop.common.util.DeliveryFeePolicy;
 import com.petitcamel.shop.inventory.domain.Inventory;
 import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.product.domain.Product;
@@ -19,6 +18,7 @@ import com.petitcamel.shop.product.domain.ProductSku;
 import com.petitcamel.shop.product.domain.ProductStatus;
 import com.petitcamel.shop.product.repository.ProductRepository;
 import com.petitcamel.shop.product.repository.ProductSkuRepository;
+import com.petitcamel.shop.shipping.service.ShippingFeeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -44,6 +44,7 @@ public class CartService {
     private final ProductSkuRepository productSkuRepository;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
+    private final ShippingFeeService shippingFeeService;
     private final Clock clock;
 
     public CartService(
@@ -52,12 +53,14 @@ public class CartService {
             ProductSkuRepository productSkuRepository,
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
+            ShippingFeeService shippingFeeService,
             Clock clock) {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.productSkuRepository = productSkuRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
+        this.shippingFeeService = shippingFeeService;
         this.clock = clock;
     }
 
@@ -219,7 +222,7 @@ public class CartService {
                     lineTotal));
         }
 
-        BigDecimal deliveryAmount = DeliveryFeePolicy.feeFor(productAmount);
+        BigDecimal deliveryAmount = shippingFeeService.quote(productAmount, null).deliveryFee();
         return new CartResponse(responses, productAmount, deliveryAmount, productAmount.add(deliveryAmount));
     }
 

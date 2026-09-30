@@ -10,6 +10,8 @@ const links = [
   { href: "/admin/inventory", label: "재고" },
   { href: "/admin/orders", label: "주문" },
   { href: "/admin/cancel-requests", label: "취소 요청" },
+  { href: "/admin/returns", label: "반품 관리" },
+  { href: "/admin/shipping-settings", label: "배송 설정" },
   { href: "/admin/members", label: "회원" },
   { href: "/admin/reviews", label: "리뷰" },
   { href: "/admin/ai", label: "AI MD" },

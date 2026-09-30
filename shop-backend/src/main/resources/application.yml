@@ -89,6 +89,25 @@ app:
   upload:
     dir: ${UPLOAD_DIR:../uploads}
 
+# Courier tracking. API key / client id come from env only (never commit them).
+# Without SHIPPING_API_KEY the provider falls back to MANUAL (admin-entered status only).
+shipping:
+  provider: ${SHIPPING_PROVIDER:SWEETTRACKER}
+  api-key: ${SHIPPING_API_KEY:}
+  client-id: ${SHIPPING_CLIENT_ID:}
+  sweettracker:
+    base-url: ${SHIPPING_SWEETTRACKER_BASE_URL:https://info.sweettracker.co.kr}
+  goodsflow:
+    base-url: ${SHIPPING_GOODSFLOW_BASE_URL:}
+  tracking:
+    cache-minutes: ${SHIPPING_TRACKING_CACHE_MINUTES:25}
+    force-refresh-min-seconds: ${SHIPPING_TRACKING_FORCE_REFRESH_MIN_SECONDS:60}
+    scheduler-enabled: ${SHIPPING_TRACKING_SCHEDULER_ENABLED:true}
+    cron: "${SHIPPING_TRACKING_CRON:0 */30 * * * *}"
+    batch-size: ${SHIPPING_TRACKING_BATCH_SIZE:200}
+    connect-timeout-ms: ${SHIPPING_TRACKING_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${SHIPPING_TRACKING_READ_TIMEOUT_MS:5000}
+
 springdoc:
   api-docs:
     path: /api-docs

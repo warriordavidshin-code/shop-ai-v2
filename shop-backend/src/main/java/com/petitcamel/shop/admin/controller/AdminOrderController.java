@@ -1,7 +1,9 @@
 package com.petitcamel.shop.admin.controller;
 
+import com.petitcamel.shop.admin.dto.AdminOrderDetailResponse;
 import com.petitcamel.shop.admin.dto.AdminOrderSummaryResponse;
 import com.petitcamel.shop.admin.dto.OrderStatusUpdateRequest;
+import com.petitcamel.shop.admin.service.AdminOrderQueryService;
 import com.petitcamel.shop.common.dto.PageResponse;
 import com.petitcamel.shop.order.domain.OrderStatus;
 import com.petitcamel.shop.order.dto.OrderResponse;
@@ -22,17 +24,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminOrderController {
 
     private final OrderService orderService;
+    private final AdminOrderQueryService adminOrderQueryService;
 
-    public AdminOrderController(OrderService orderService) {
+    public AdminOrderController(OrderService orderService, AdminOrderQueryService adminOrderQueryService) {
         this.orderService = orderService;
+        this.adminOrderQueryService = adminOrderQueryService;
     }
 
+    /**
+     * @param view    ALL, TODAY, READY, SHIPPING, DELIVERED, RETURN, CANCEL (ignored when status is given)
+     * @param keyword order number search (takes precedence over filters)
+     */
     @GetMapping
     public PageResponse<AdminOrderSummaryResponse> listOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) OrderStatus status) {
-        return orderService.listAdminOrders(page, size, status);
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) String view,
+            @RequestParam(required = false) String keyword) {
+        return adminOrderQueryService.list(page, size, status, view, keyword);
+    }
+
+    @GetMapping("/{orderNo}")
+    public AdminOrderDetailResponse getOrder(@PathVariable String orderNo) {
+        return adminOrderQueryService.detail(orderNo);
     }
 
     @PatchMapping("/{orderNo}/status")

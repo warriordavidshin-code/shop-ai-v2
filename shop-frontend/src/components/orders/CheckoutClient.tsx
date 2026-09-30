@@ -13,6 +13,8 @@ import { createOrder, mockApprovePayment } from "@/features/orders/api";
 import { getMe } from "@/features/auth/api";
 import type { Member } from "@/features/auth/schemas";
 import { createAddress, formatAddressLine, listAddresses, type MemberAddress } from "@/features/members/api";
+import { getShippingQuote, type ShippingQuote } from "@/features/shipping/api";
+import { useShippingPolicy } from "@/features/shipping/useShippingPolicy";
 
 const MAX_ADDRESSES = 10;
 
@@ -65,6 +67,8 @@ export function CheckoutClient() {
   const [orderMemo, setOrderMemo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [quote, setQuote] = useState<ShippingQuote | null>(null);
+  const policy = useShippingPolicy();
 
   const idempotencyKey = useMemo(
     () => (typeof crypto !== "undefined" ? crypto.randomUUID() : `key-${Date.now()}`),
@@ -101,6 +105,29 @@ export function CheckoutClient() {
   const selectedAddress = selected === "new" ? null : addresses.find((a) => a.addressId === selected) ?? null;
   const shipping: ShippingForm = selectedAddress ? fromAddress(selectedAddress) : newAddress;
   const canSaveNew = !!member && addresses.length < MAX_ADDRESSES;
+  const productAmount = cart?.productAmount ?? 0;
+  const postcode = shipping.postcode;
+
+  useEffect(() => {
+    if (!(productAmount > 0)) {
+      setQuote(null);
+      return;
+    }
+    let active = true;
+    getShippingQuote(productAmount, postcode || undefined)
+      .then((value) => {
+        if (active) setQuote(value);
+      })
+      .catch(() => {
+        if (active) setQuote(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [productAmount, postcode]);
+
+  const deliveryAmount = quote?.deliveryFee ?? cart?.deliveryAmount ?? 0;
+  const paymentAmount = productAmount + deliveryAmount;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -299,11 +326,20 @@ export function CheckoutClient() {
             <span>상품금액</span>
             <span className="tabular-nums">{formatKrw(cart.productAmount)}원</span>
           </div>
-          <DeliveryFeeRow productAmount={cart.productAmount} deliveryAmount={cart.deliveryAmount} />
-          <FreeShippingNotice productAmount={cart.productAmount} className="pb-1" />
+          <DeliveryFeeRow
+            productAmount={cart.productAmount}
+            deliveryAmount={deliveryAmount}
+            extraFee={quote?.extraFee ?? 0}
+          />
+          <FreeShippingNotice productAmount={cart.productAmount} policy={policy} className="pb-1" />
+          {quote?.areaType ? (
+            <p className="pb-1 text-xs text-muted-foreground">
+              {quote.areaType === "JEJU" ? "제주" : "도서산간"} 지역 추가 배송비가 포함되었습니다.
+            </p>
+          ) : null}
           <div className="mt-2 flex justify-between border-t border-border pt-3 font-semibold">
             <span>결제금액</span>
-            <span className="tabular-nums">{formatKrw(cart.paymentAmount)}원</span>
+            <span className="tabular-nums">{formatKrw(paymentAmount)}원</span>
           </div>
         </div>
         <p className="rounded-xl border border-border bg-brand-soft/50 px-3 py-2 text-sm text-foreground">

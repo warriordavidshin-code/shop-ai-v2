@@ -210,7 +210,7 @@ public class OrderCancelRequestService {
                 request.getProcessedAt());
     }
 
-    static String itemSummary(List<OrderItem> items) {
+    public static String itemSummary(List<OrderItem> items) {
         if (items == null || items.isEmpty()) {
             return "-";
         }

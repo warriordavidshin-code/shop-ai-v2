@@ -1,13 +1,11 @@
 package com.petitcamel.shop.order.service;
 
-import com.petitcamel.shop.admin.dto.AdminOrderSummaryResponse;
 import com.petitcamel.shop.cart.repository.CartItemRepository;
 import com.petitcamel.shop.cart.repository.CartRepository;
 import com.petitcamel.shop.common.dto.PageResponse;
 import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.service.AuditLogService;
-import com.petitcamel.shop.common.util.DeliveryFeePolicy;
 import com.petitcamel.shop.inventory.domain.Inventory;
 import com.petitcamel.shop.inventory.domain.InventoryMovement;
 import com.petitcamel.shop.inventory.domain.MovementType;
@@ -22,6 +20,7 @@ import com.petitcamel.shop.order.dto.OrderItemRequest;
 import com.petitcamel.shop.order.dto.OrderItemResponse;
 import com.petitcamel.shop.order.dto.OrderResponse;
 import com.petitcamel.shop.order.dto.OrderSummaryResponse;
+import com.petitcamel.shop.order.event.OrderStatusChangedEvent;
 import com.petitcamel.shop.order.repository.OrderCancelRequestRepository;
 import com.petitcamel.shop.order.repository.OrderEntityRepository;
 import com.petitcamel.shop.order.repository.OrderItemRepository;
@@ -37,6 +36,8 @@ import com.petitcamel.shop.product.domain.ProductSku;
 import com.petitcamel.shop.product.domain.ProductStatus;
 import com.petitcamel.shop.product.repository.ProductRepository;
 import com.petitcamel.shop.product.repository.ProductSkuRepository;
+import com.petitcamel.shop.shipping.service.ShippingFeeService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
@@ -68,6 +69,8 @@ public class OrderService {
     static final Set<OrderStatus> CANCELLABLE_STATUSES =
             EnumSet.of(OrderStatus.PAYMENT_PENDING, OrderStatus.PAID, OrderStatus.PREPARING);
 
+    static final Set<OrderStatus> RETURN_STATUSES = EnumSet.of(OrderStatus.RETURN_REQUESTED, OrderStatus.RETURNED);
+
     private final OrderEntityRepository orderEntityRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderCancelRequestRepository orderCancelRequestRepository;
@@ -80,6 +83,8 @@ public class OrderService {
     private final CartItemRepository cartItemRepository;
     private final PaymentGateway paymentGateway;
     private final AuditLogService auditLogService;
+    private final ShippingFeeService shippingFeeService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public OrderService(
@@ -95,6 +100,8 @@ public class OrderService {
             CartItemRepository cartItemRepository,
             PaymentGateway paymentGateway,
             AuditLogService auditLogService,
+            ShippingFeeService shippingFeeService,
+            ApplicationEventPublisher eventPublisher,
             Clock clock) {
         this.orderEntityRepository = orderEntityRepository;
         this.orderItemRepository = orderItemRepository;
@@ -108,6 +115,8 @@ public class OrderService {
         this.cartItemRepository = cartItemRepository;
         this.paymentGateway = paymentGateway;
         this.auditLogService = auditLogService;
+        this.shippingFeeService = shippingFeeService;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -163,33 +172,8 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<AdminOrderSummaryResponse> listAdminOrders(int page, int size, OrderStatus status) {
-        int safePage = Math.max(page, 0);
-        int safeSize = size <= 0 ? 20 : Math.min(size, 100);
-        PageRequest pageable = PageRequest.of(safePage, safeSize);
-
-        Page<OrderEntity> orders = status == null
-                ? orderEntityRepository.findAllByOrderByOrderedAtDesc(pageable)
-                : orderEntityRepository.findByOrderStatusOrderByOrderedAtDesc(status, pageable);
-
-        List<Long> orderIds = orders.getContent().stream().map(OrderEntity::getOrderId).toList();
-        Map<Long, Long> itemCountByOrder = orderIds.isEmpty()
-                ? Map.of()
-                : orderItemRepository.findByOrderIdIn(orderIds).stream()
-                .collect(Collectors.groupingBy(OrderItem::getOrderId, Collectors.counting()));
-
-        List<AdminOrderSummaryResponse> content = orders.getContent().stream()
-                .map(order -> new AdminOrderSummaryResponse(
-                        order.getOrderId(),
-                        order.getOrderNo(),
-                        order.getMemberId(),
-                        order.getOrderStatus(),
-                        order.getPaymentAmount(),
-                        order.getOrderedAt(),
-                        itemCountByOrder.getOrDefault(order.getOrderId(), 0L).intValue()))
-                .toList();
-
-        return PageResponse.of(content, orders.getNumber(), orders.getSize(), orders.getTotalElements());
+    public OrderResponse getOrderForAdmin(String orderNo) {
+        return toOrderResponse(requireOrderByNo(orderNo), true);
     }
 
     @Transactional
@@ -202,6 +186,10 @@ public class OrderService {
         if (previous == OrderStatus.CANCEL_REQUESTED || newStatus == OrderStatus.CANCEL_REQUESTED) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
                     "취소 요청 중인 주문은 취소 요청 관리에서 승인 또는 거절해 주세요.");
+        }
+        if (RETURN_STATUSES.contains(previous) || RETURN_STATUSES.contains(newStatus)) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    "반품 중이거나 반품된 주문은 반품 관리에서 처리해 주세요.");
         }
         if (previous == OrderStatus.CANCELLED) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "취소된 주문은 상태를 변경할 수 없습니다.");
@@ -217,6 +205,8 @@ public class OrderService {
             order.setOrderStatus(newStatus);
             order.setUpdatedAt(now);
             orderEntityRepository.save(order);
+            eventPublisher.publishEvent(new OrderStatusChangedEvent(
+                    order.getOrderId(), order.getOrderNo(), previous, newStatus, actorMemberId));
         }
 
         auditLogService.record(
@@ -333,9 +323,12 @@ public class OrderService {
             }
         }
 
+        OrderStatus current = order.getOrderStatus();
         order.setOrderStatus(OrderStatus.CANCELLED);
         order.setUpdatedAt(now);
         orderEntityRepository.save(order);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(
+                order.getOrderId(), order.getOrderNo(), current, OrderStatus.CANCELLED, actorMemberId));
         log.info("Order cancelled actorMemberId={} orderNo={} previousStatus={}",
                 actorMemberId, order.getOrderNo(), fromStatus);
     }
@@ -389,7 +382,9 @@ public class OrderService {
         }
 
         BigDecimal discountAmount = BigDecimal.ZERO;
-        BigDecimal deliveryAmount = DeliveryFeePolicy.feeFor(productAmount.subtract(discountAmount));
+        BigDecimal deliveryAmount = shippingFeeService
+                .quote(productAmount.subtract(discountAmount), request.postcode())
+                .deliveryFee();
         BigDecimal paymentAmount = productAmount.subtract(discountAmount).add(deliveryAmount);
 
         for (PreparedLine line : lines) {

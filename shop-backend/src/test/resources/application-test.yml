@@ -17,3 +17,9 @@ app:
     openai:
       api-key:
       model:
+
+shipping:
+  provider: MANUAL
+  api-key:
+  tracking:
+    scheduler-enabled: false

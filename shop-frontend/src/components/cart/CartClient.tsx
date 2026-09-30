@@ -13,8 +13,10 @@ import {
   updateCartItem,
   type Cart,
 } from "@/features/cart/api";
+import { useShippingPolicy } from "@/features/shipping/useShippingPolicy";
 
 export function CartClient() {
+  const policy = useShippingPolicy();
   const [cart, setCart] = useState<Cart | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,7 +132,8 @@ export function CartClient() {
           <span className="tabular-nums">{formatKrw(cart.productAmount)}원</span>
         </div>
         <DeliveryFeeRow productAmount={cart.productAmount} deliveryAmount={cart.deliveryAmount} />
-        <FreeShippingNotice productAmount={cart.productAmount} className="pb-1" />
+        <FreeShippingNotice productAmount={cart.productAmount} policy={policy} className="pb-1" />
+        <p className="text-xs text-muted-foreground">제주·도서산간 지역은 추가 배송비가 부과될 수 있습니다.</p>
         <div className="mt-2 flex justify-between border-t border-border pt-3 text-base font-semibold">
           <span>결제금액(예상)</span>
           <span className="tabular-nums">{formatKrw(cart.paymentAmount)}원</span>

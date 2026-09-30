@@ -2,7 +2,7 @@ package com.petitcamel.shop.cart;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.petitcamel.shop.common.util.DeliveryFeePolicy;
+import com.petitcamel.shop.shipping.service.ShippingFeeService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +59,9 @@ class CartIntegrationIT {
     @Autowired
     JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    ShippingFeeService shippingFeeService;
+
     private String accessToken;
 
     @BeforeEach
@@ -93,7 +96,8 @@ class CartIntegrationIT {
                     JsonNode body = new ObjectMapper().readTree(result.getResponse().getContentAsString());
                     BigDecimal productAmount = new BigDecimal(body.get("productAmount").asText());
                     BigDecimal deliveryAmount = new BigDecimal(body.get("deliveryAmount").asText());
-                    assertThat(deliveryAmount).isEqualByComparingTo(DeliveryFeePolicy.feeFor(productAmount));
+                    assertThat(deliveryAmount).isEqualByComparingTo(
+                            shippingFeeService.quote(productAmount, null).deliveryFee());
                     assertThat(new BigDecimal(body.get("paymentAmount").asText()))
                             .isEqualByComparingTo(productAmount.add(deliveryAmount));
                 });
