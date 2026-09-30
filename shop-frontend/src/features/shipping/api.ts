@@ -8,6 +8,7 @@ export const shippingPolicySchema = z.object({
   jejuExtraFee: z.coerce.number(),
   remoteAreaExtraFee: z.coerce.number(),
   returnShippingFee: z.coerce.number(),
+  exchangeShippingFee: z.coerce.number(),
   updatedAt: z.string().nullable().optional(),
 });
 
@@ -29,6 +30,7 @@ export const trackingEventSchema = z.object({
   location: z.string().nullable().optional(),
   description: z.string(),
   status: z.string().nullable().optional(),
+  providerStatus: z.string().nullable().optional(),
   source: z.string().optional(),
 });
 
@@ -60,18 +62,21 @@ export const returnRequestSchema = z.object({
   orderId: z.number(),
   reason: z.string(),
   reasonLabel: z.string(),
-  memo: z.string().nullable().optional(),
+  reasonText: z.string().nullable().optional(),
+  customerMemo: z.string().nullable().optional(),
   status: z.string(),
   statusName: z.string(),
-  pickupName: z.string(),
-  pickupPhone: z.string(),
-  pickupPostcode: z.string(),
-  pickupAddress1: z.string(),
+  pickupName: z.string().nullable().optional(),
+  pickupPhone: z.string().nullable().optional(),
+  pickupPostcode: z.string().nullable().optional(),
+  pickupAddress1: z.string().nullable().optional(),
   pickupAddress2: z.string().nullable().optional(),
   pickupDeliveryCompany: z.string().nullable().optional(),
   pickupDeliveryCompanyName: z.string().nullable().optional(),
   pickupTrackingNumber: z.string().nullable().optional(),
   pickupTrackingUrl: z.string().nullable().optional(),
+  shipmentStatus: z.string().nullable().optional(),
+  shipmentStatusName: z.string().nullable().optional(),
   freeReturn: z.boolean(),
   returnShippingFee: z.coerce.number(),
   refundAmount: z.coerce.number().nullable().optional(),
@@ -84,6 +89,7 @@ export const returnRequestSchema = z.object({
   receivedAt: z.string().nullable().optional(),
   completedAt: z.string().nullable().optional(),
   rejectedAt: z.string().nullable().optional(),
+  cancelledAt: z.string().nullable().optional(),
 });
 
 export type ReturnRequest = z.infer<typeof returnRequestSchema>;
@@ -91,6 +97,7 @@ export type ReturnRequest = z.infer<typeof returnRequestSchema>;
 export const returnInfoSchema = z.object({
   returnRequest: returnRequestSchema.nullable().optional(),
   canRequest: z.boolean(),
+  canCancel: z.boolean().default(false),
   returnShippingFee: z.coerce.number(),
   reasons: z.array(z.object({ code: z.string(), label: z.string(), freeReturn: z.boolean() })),
 });
@@ -100,6 +107,7 @@ export type ReturnInfo = z.infer<typeof returnInfoSchema>;
 export type ReturnInput = {
   returnReason: string;
   returnMemo?: string;
+  customerMemo?: string;
   pickupName: string;
   pickupPhone: string;
   pickupPostcode: string;
@@ -147,6 +155,13 @@ export async function requestReturn(orderId: number, input: ReturnInput) {
     method: "POST",
     body: JSON.stringify(input),
   });
+  if (!response.ok) throw await parseApiError(response);
+  return returnRequestSchema.parse(await response.json());
+}
+
+/** Withdraws the order's return while it is still 반품신청 / 반품승인. */
+export async function cancelReturn(orderId: number) {
+  const response = await shopFetch(`/orders/${orderId}/return/cancel`, { method: "POST" });
   if (!response.ok) throw await parseApiError(response);
   return returnRequestSchema.parse(await response.json());
 }

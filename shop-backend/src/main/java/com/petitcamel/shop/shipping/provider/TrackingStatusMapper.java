@@ -4,7 +4,8 @@ import com.petitcamel.shop.shipping.domain.ShipmentStatus;
 
 /**
  * Maps courier status text / levels to internal statuses. Couriers word their events differently
- * ("집화처리", "상품인수", "간선상차", "배달출발" ...), so matching is keyword based.
+ * ("집화처리", "상품인수", "간선상차", "배달출발" ...), so matching is keyword based. The mapping is the same for
+ * deliveries and returns; the shipment type tells the direction.
  */
 public final class TrackingStatusMapper {
 
@@ -44,17 +45,5 @@ public final class TrackingStatusMapper {
             return ShipmentStatus.IN_TRANSIT;
         }
         return null;
-    }
-
-    /** Converts a delivery-direction status to the equivalent return-shipment status. */
-    public static ShipmentStatus toReturnStatus(ShipmentStatus deliveryStatus) {
-        if (deliveryStatus == null) {
-            return null;
-        }
-        return switch (deliveryStatus) {
-            case PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY -> ShipmentStatus.RETURN_IN_TRANSIT;
-            case DELIVERED -> ShipmentStatus.RETURN_COMPLETED;
-            default -> null;
-        };
     }
 }

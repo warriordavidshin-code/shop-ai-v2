@@ -6,9 +6,14 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * @param returnMemo   details of the reason
+ * @param customerMemo note for the pickup driver
+ */
 public record ReturnCreateRequest(
         @NotNull(message = "반품 사유를 선택해 주세요.") ReturnReason returnReason,
         @Size(max = 1000, message = "상세 내용은 1000자 이내로 입력해 주세요.") String returnMemo,
+        @Size(max = 500, message = "수거 요청사항은 500자 이내로 입력해 주세요.") String customerMemo,
         @NotBlank(message = "수거 담당자 이름을 입력해 주세요.") @Size(max = 100) String pickupName,
         @NotBlank(message = "수거 연락처를 입력해 주세요.")
         @Pattern(regexp = "^[0-9\\-+() ]{8,20}$", message = "연락처 형식을 확인해 주세요.")

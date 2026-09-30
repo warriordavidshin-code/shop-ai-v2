@@ -1,5 +1,6 @@
 package com.petitcamel.shop.shipping.domain;
 
+import com.petitcamel.shop.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,12 +11,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * The customer's return request and its business state. The parcel itself (pickup address, courier, invoice,
+ * tracking) is the RETURN {@link Shipment} pointing back here via {@code shipment.return_request_id}.
+ */
 @Entity
 @Table(name = "return_request")
-public class ReturnRequest {
+public class ReturnRequest extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,49 +29,29 @@ public class ReturnRequest {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
-    @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason_code", nullable = false, length = 30)
+    private ReturnReason reasonCode;
+
+    @Column(name = "reason_text", length = 1000)
+    private String reasonText;
+
+    /** Pickup note for the courier ("문 앞에 두었습니다"). */
+    @Column(name = "customer_memo", length = 500)
+    private String customerMemo;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "reason", nullable = false, length = 100)
-    private ReturnReason reason;
-
-    @Column(name = "memo", columnDefinition = "TEXT")
-    private String memo;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "return_status", nullable = false, length = 30)
-    private ReturnStatus returnStatus;
-
-    @Column(name = "pickup_name", nullable = false, length = 100)
-    private String pickupName;
-
-    @Column(name = "pickup_phone", nullable = false, length = 32)
-    private String pickupPhone;
-
-    @Column(name = "pickup_postcode", nullable = false, length = 16)
-    private String pickupPostcode;
-
-    @Column(name = "pickup_address1", nullable = false, length = 255)
-    private String pickupAddress1;
-
-    @Column(name = "pickup_address2", length = 255)
-    private String pickupAddress2;
-
-    @Column(name = "pickup_delivery_company", length = 30)
-    private String pickupDeliveryCompany;
-
-    @Column(name = "pickup_tracking_number", length = 100)
-    private String pickupTrackingNumber;
+    @Column(name = "status", nullable = false, length = 30)
+    private ReturnStatus status;
 
     @Column(name = "free_return", nullable = false)
     private boolean freeReturn;
 
-    @Column(name = "return_shipping_fee", nullable = false, precision = 15, scale = 2)
-    private BigDecimal returnShippingFee = BigDecimal.ZERO;
+    @Column(name = "return_shipping_fee", nullable = false)
+    private long returnShippingFee;
 
-    @Column(name = "refund_amount", precision = 15, scale = 2)
-    private BigDecimal refundAmount;
+    @Column(name = "refund_amount")
+    private Long refundAmount;
 
     @Column(name = "restocked", nullable = false)
     private boolean restocked;
@@ -78,20 +62,11 @@ public class ReturnRequest {
     @Column(name = "admin_memo", length = 500)
     private String adminMemo;
 
-    @Column(name = "processed_by")
-    private Long processedBy;
-
     @Column(name = "requested_at", nullable = false)
     private Instant requestedAt;
 
     @Column(name = "approved_at")
     private Instant approvedAt;
-
-    @Column(name = "pickup_requested_at")
-    private Instant pickupRequestedAt;
-
-    @Column(name = "picked_up_at")
-    private Instant pickedUpAt;
 
     @Column(name = "received_at")
     private Instant receivedAt;
@@ -102,8 +77,8 @@ public class ReturnRequest {
     @Column(name = "rejected_at")
     private Instant rejectedAt;
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -111,10 +86,6 @@ public class ReturnRequest {
 
     public Long getReturnRequestId() {
         return returnRequestId;
-    }
-
-    public void setReturnRequestId(Long returnRequestId) {
-        this.returnRequestId = returnRequestId;
     }
 
     public Long getOrderId() {
@@ -125,92 +96,36 @@ public class ReturnRequest {
         this.orderId = orderId;
     }
 
-    public Long getMemberId() {
-        return memberId;
+    public ReturnReason getReasonCode() {
+        return reasonCode;
     }
 
-    public void setMemberId(Long memberId) {
-        this.memberId = memberId;
+    public void setReasonCode(ReturnReason reasonCode) {
+        this.reasonCode = reasonCode;
     }
 
-    public ReturnReason getReason() {
-        return reason;
+    public String getReasonText() {
+        return reasonText;
     }
 
-    public void setReason(ReturnReason reason) {
-        this.reason = reason;
+    public void setReasonText(String reasonText) {
+        this.reasonText = reasonText;
     }
 
-    public String getMemo() {
-        return memo;
+    public String getCustomerMemo() {
+        return customerMemo;
     }
 
-    public void setMemo(String memo) {
-        this.memo = memo;
+    public void setCustomerMemo(String customerMemo) {
+        this.customerMemo = customerMemo;
     }
 
-    public ReturnStatus getReturnStatus() {
-        return returnStatus;
+    public ReturnStatus getStatus() {
+        return status;
     }
 
-    public void setReturnStatus(ReturnStatus returnStatus) {
-        this.returnStatus = returnStatus;
-    }
-
-    public String getPickupName() {
-        return pickupName;
-    }
-
-    public void setPickupName(String pickupName) {
-        this.pickupName = pickupName;
-    }
-
-    public String getPickupPhone() {
-        return pickupPhone;
-    }
-
-    public void setPickupPhone(String pickupPhone) {
-        this.pickupPhone = pickupPhone;
-    }
-
-    public String getPickupPostcode() {
-        return pickupPostcode;
-    }
-
-    public void setPickupPostcode(String pickupPostcode) {
-        this.pickupPostcode = pickupPostcode;
-    }
-
-    public String getPickupAddress1() {
-        return pickupAddress1;
-    }
-
-    public void setPickupAddress1(String pickupAddress1) {
-        this.pickupAddress1 = pickupAddress1;
-    }
-
-    public String getPickupAddress2() {
-        return pickupAddress2;
-    }
-
-    public void setPickupAddress2(String pickupAddress2) {
-        this.pickupAddress2 = pickupAddress2;
-    }
-
-    public String getPickupDeliveryCompany() {
-        return pickupDeliveryCompany;
-    }
-
-    public void setPickupDeliveryCompany(String pickupDeliveryCompany) {
-        this.pickupDeliveryCompany = pickupDeliveryCompany;
-    }
-
-    public String getPickupTrackingNumber() {
-        return pickupTrackingNumber;
-    }
-
-    public void setPickupTrackingNumber(String pickupTrackingNumber) {
-        this.pickupTrackingNumber = pickupTrackingNumber;
+    public void setStatus(ReturnStatus status) {
+        this.status = status;
     }
 
     public boolean isFreeReturn() {
@@ -221,19 +136,19 @@ public class ReturnRequest {
         this.freeReturn = freeReturn;
     }
 
-    public BigDecimal getReturnShippingFee() {
+    public long getReturnShippingFee() {
         return returnShippingFee;
     }
 
-    public void setReturnShippingFee(BigDecimal returnShippingFee) {
+    public void setReturnShippingFee(long returnShippingFee) {
         this.returnShippingFee = returnShippingFee;
     }
 
-    public BigDecimal getRefundAmount() {
+    public Long getRefundAmount() {
         return refundAmount;
     }
 
-    public void setRefundAmount(BigDecimal refundAmount) {
+    public void setRefundAmount(Long refundAmount) {
         this.refundAmount = refundAmount;
     }
 
@@ -261,14 +176,6 @@ public class ReturnRequest {
         this.adminMemo = adminMemo;
     }
 
-    public Long getProcessedBy() {
-        return processedBy;
-    }
-
-    public void setProcessedBy(Long processedBy) {
-        this.processedBy = processedBy;
-    }
-
     public Instant getRequestedAt() {
         return requestedAt;
     }
@@ -283,22 +190,6 @@ public class ReturnRequest {
 
     public void setApprovedAt(Instant approvedAt) {
         this.approvedAt = approvedAt;
-    }
-
-    public Instant getPickupRequestedAt() {
-        return pickupRequestedAt;
-    }
-
-    public void setPickupRequestedAt(Instant pickupRequestedAt) {
-        this.pickupRequestedAt = pickupRequestedAt;
-    }
-
-    public Instant getPickedUpAt() {
-        return pickedUpAt;
-    }
-
-    public void setPickedUpAt(Instant pickedUpAt) {
-        this.pickedUpAt = pickedUpAt;
     }
 
     public Instant getReceivedAt() {
@@ -325,19 +216,15 @@ public class ReturnRequest {
         this.rejectedAt = rejectedAt;
     }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
+    public Instant getCancelledAt() {
+        return cancelledAt;
     }
 
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
+    public void setCancelledAt(Instant cancelledAt) {
+        this.cancelledAt = cancelledAt;
     }
 
     public Long getVersion() {
         return version;
-    }
-
-    public void setVersion(Long version) {
-        this.version = version;
     }
 }

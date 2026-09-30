@@ -60,6 +60,6 @@ public class AdminDashboardService {
                 orderEntityRepository.countByOrderStatusIn(AdminOrderQueryService.READY_STATUSES),
                 orderEntityRepository.countByOrderStatus(OrderStatus.SHIPPED),
                 orderEntityRepository.countByOrderStatus(OrderStatus.DELIVERED),
-                returnRequestRepository.countByReturnStatusIn(ReturnStatus.OPEN));
+                returnRequestRepository.countByStatusIn(ReturnStatus.OPEN));
     }
 }

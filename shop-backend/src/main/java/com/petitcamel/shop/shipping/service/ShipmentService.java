@@ -19,16 +19,12 @@ import com.petitcamel.shop.shipping.dto.BulkInvoiceResponse;
 import com.petitcamel.shop.shipping.dto.ShipmentActionResponse;
 import com.petitcamel.shop.shipping.dto.ShipmentView;
 import com.petitcamel.shop.shipping.event.ShipmentStatusChangedEvent;
-import com.petitcamel.shop.shipping.pickup.PickupRequest;
-import com.petitcamel.shop.shipping.pickup.PickupResponse;
-import com.petitcamel.shop.shipping.pickup.PickupService;
+import com.petitcamel.shop.shipping.provider.ProviderActionResult;
+import com.petitcamel.shop.shipping.provider.ShipmentCommand;
 import com.petitcamel.shop.shipping.repository.ReturnRequestRepository;
 import com.petitcamel.shop.shipping.repository.ShipmentRepository;
 import com.petitcamel.shop.shipping.repository.ShipmentTrackingEventRepository;
 import com.petitcamel.shop.shipping.support.ShippingLogMasker;
-import com.petitcamel.shop.shipping.waybill.WaybillRequest;
-import com.petitcamel.shop.shipping.waybill.WaybillResponse;
-import com.petitcamel.shop.shipping.waybill.WaybillService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -46,13 +42,14 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
  * Shipment lifecycle: invoice registration, status transitions and keeping the order status in step.
  * All status changes go through {@link #transition} so timestamps, events, order sync and
- * notifications stay consistent regardless of whether an admin or the tracking sync triggered them.
+ * notifications stay consistent regardless of whether an admin, a vendor or the tracking sync triggered them.
  */
 @Service
 public class ShipmentService {
@@ -67,20 +64,41 @@ public class ShipmentService {
     static final Set<OrderStatus> SHIPMENT_ORDER_STATUSES =
             EnumSet.of(OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
 
-    /** Delivery statuses an admin may set by hand (pickup requests have their own action). */
+    /** Delivery statuses an admin may set by hand (waybill / pickup have their own actions). */
     static final Set<ShipmentStatus> MANUAL_TARGETS = EnumSet.of(
-            ShipmentStatus.PREPARING, ShipmentStatus.READY, ShipmentStatus.PICKED_UP,
-            ShipmentStatus.IN_TRANSIT, ShipmentStatus.OUT_FOR_DELIVERY, ShipmentStatus.DELIVERED);
+            ShipmentStatus.PICKED_UP, ShipmentStatus.IN_TRANSIT, ShipmentStatus.OUT_FOR_DELIVERY,
+            ShipmentStatus.DELIVERED, ShipmentStatus.FAILED);
+
+    private static final Set<ReturnStatus> RETURN_TRACKING_SYNCABLE =
+            EnumSet.of(ReturnStatus.APPROVED, ReturnStatus.PICKUP_REQUESTED, ReturnStatus.IN_PROGRESS);
 
     private static final Pattern TRACKING_NUMBER = Pattern.compile("^[A-Z0-9]{6,30}$");
+
+    /**
+     * Everything an external call needs about the shipment, read in one transaction before the vendor is called
+     * (the call itself runs outside any transaction).
+     */
+    public record ExternalTarget(
+            Long orderId,
+            String orderNo,
+            Long memberId,
+            Long shipmentId,
+            ShipmentType shipmentType,
+            Long returnRequestId,
+            Long deliveryCompanyId,
+            String deliveryCompanyCode,
+            ShipmentCommand.Contact contact,
+            String memo,
+            boolean alreadyDone
+    ) {
+    }
 
     private final ShipmentRepository shipmentRepository;
     private final ShipmentTrackingEventRepository eventRepository;
     private final OrderEntityRepository orderRepository;
     private final ReturnRequestRepository returnRequestRepository;
     private final DeliveryCompanyService deliveryCompanyService;
-    private final PickupService pickupService;
-    private final WaybillService waybillService;
+    private final ShippingOperationService operationService;
     private final ShipmentViewAssembler assembler;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
@@ -93,8 +111,7 @@ public class ShipmentService {
             OrderEntityRepository orderRepository,
             ReturnRequestRepository returnRequestRepository,
             DeliveryCompanyService deliveryCompanyService,
-            PickupService pickupService,
-            WaybillService waybillService,
+            ShippingOperationService operationService,
             ShipmentViewAssembler assembler,
             AuditLogService auditLogService,
             ApplicationEventPublisher eventPublisher,
@@ -105,8 +122,7 @@ public class ShipmentService {
         this.orderRepository = orderRepository;
         this.returnRequestRepository = returnRequestRepository;
         this.deliveryCompanyService = deliveryCompanyService;
-        this.pickupService = pickupService;
-        this.waybillService = waybillService;
+        this.operationService = operationService;
         this.assembler = assembler;
         this.auditLogService = auditLogService;
         this.eventPublisher = eventPublisher;
@@ -167,83 +183,102 @@ public class ShipmentService {
         }
         Instant now = clock.instant();
         Shipment shipment = getOrCreateDelivery(order, now);
-        ShipmentStatus current = shipment.getShipmentStatus();
+        ShipmentStatus current = shipment.getStatus();
+        String targetLabel = target.labelFor(ShipmentType.DELIVERY);
         if (current == target) {
-            return new ShipmentActionResponse(true, "이미 " + target.getLabel() + " 상태입니다.", assembler.toView(shipment, true));
+            return new ShipmentActionResponse(true, "이미 " + targetLabel + " 상태입니다.", assembler.toView(shipment, true));
         }
         if (!current.canAdvanceTo(target)) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
-                    current.getLabel() + " 상태에서 " + target.getLabel() + "(으)로 변경할 수 없습니다.");
+                    current.labelFor(ShipmentType.DELIVERY) + " 상태에서 " + targetLabel + "(으)로 변경할 수 없습니다.");
         }
         if (target.getRank() >= ShipmentStatus.PICKED_UP.getRank() && !shipment.hasTrackingNumber()) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "송장번호를 먼저 등록해 주세요.");
         }
-        transition(shipment, order, target, now, "관리자가 '" + target.getLabel() + "' 상태로 변경했습니다.", actorId, false);
+        transition(shipment, order, target, now, "관리자가 '" + targetLabel + "' 상태로 변경했습니다.", actorId, false);
         auditLogService.record(actorId, "SHIPMENT_STATUS_UPDATE", "ORDER", order.getOrderNo(),
                 "from=" + current + ", to=" + target);
-        return new ShipmentActionResponse(true, target.getLabel() + " 상태로 변경했습니다.", assembler.toView(shipment, true));
-    }
-
-    @Transactional
-    public ShipmentActionResponse requestPickup(Long orderId, String deliveryCompany, Long actorId) {
-        OrderEntity order = requireOrder(orderId);
-        requireActionable(order);
-        Instant now = clock.instant();
-        Shipment shipment = getOrCreateDelivery(order, now);
-        if (!shipment.getShipmentStatus().canAdvanceTo(ShipmentStatus.PICKUP_REQUESTED)) {
-            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
-                    shipment.getShipmentStatus().getLabel() + " 상태에서는 수거요청을 할 수 없습니다.");
-        }
-        String companyCode = isBlank(deliveryCompany)
-                ? shipment.getDeliveryCompany()
-                : deliveryCompanyService.resolveEnabled(deliveryCompany).getCode();
-
-        PickupResponse response = pickupService.requestPickup(new PickupRequest(
-                order.getOrderId(), order.getOrderNo(), ShipmentType.DELIVERY, companyCode,
-                null, null, null, null, null, order.getOrderMemo()));
-        if (!response.accepted()) {
-            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
-                    response.message() == null ? "수거요청에 실패했습니다." : response.message());
-        }
-        shipment.setDeliveryCompany(companyCode);
-        if (!isBlank(response.trackingNumber())) {
-            shipment.setTrackingNumber(normalizeTrackingNumber(response.trackingNumber()));
-        }
-        transition(shipment, order, ShipmentStatus.PICKUP_REQUESTED, now, "택배 집하(수거)를 요청했습니다.", actorId, false);
-        auditLogService.record(actorId, "SHIPMENT_PICKUP_REQUEST", "ORDER", order.getOrderNo(),
-                "service=" + pickupService.name() + ", company=" + companyCode);
-        return new ShipmentActionResponse(true, response.message(), assembler.toView(shipment, true));
-    }
-
-    @Transactional(readOnly = true)
-    public WaybillResponse issueWaybill(Long orderId) {
-        OrderEntity order = requireOrder(orderId);
-        Shipment shipment = shipmentRepository.findByOrderIdAndShipmentType(orderId, ShipmentType.DELIVERY).orElse(null);
-        return waybillService.issue(new WaybillRequest(order.getOrderId(), order.getOrderNo(),
-                shipment == null ? null : shipment.getDeliveryCompany()));
-    }
-
-    @Transactional(readOnly = true)
-    public WaybillResponse printWaybill(Long orderId) {
-        OrderEntity order = requireOrder(orderId);
-        Shipment shipment = shipmentRepository.findByOrderIdAndShipmentType(orderId, ShipmentType.DELIVERY).orElse(null);
-        return waybillService.print(new WaybillRequest(order.getOrderId(), order.getOrderNo(),
-                shipment == null ? null : shipment.getDeliveryCompany()));
-    }
-
-    public boolean waybillSupported() {
-        return waybillService.isSupported();
-    }
-
-    public String pickupServiceName() {
-        return pickupService.name();
+        return new ShipmentActionResponse(true, targetLabel + " 상태로 변경했습니다.", assembler.toView(shipment, true));
     }
 
     @Transactional(readOnly = true)
     public ShipmentView findView(Long orderId, ShipmentType type) {
-        return shipmentRepository.findByOrderIdAndShipmentType(orderId, type)
+        return shipmentRepository.findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(orderId, type)
                 .map(s -> assembler.toView(s, true))
                 .orElse(null);
+    }
+
+    // ------------------------------------------------------------------ external actions (delivery)
+
+    /**
+     * Validates that the delivery shipment can move to {@code target} and collects what the vendor needs.
+     * Creates the delivery shipment on first use.
+     *
+     * @param companyInput courier to use; blank keeps the courier already on the shipment (may stay null)
+     */
+    @Transactional
+    public ExternalTarget prepareDeliveryAction(Long orderId, String companyInput, ShipmentStatus target) {
+        OrderEntity order = requireOrder(orderId);
+        requireActionable(order);
+        Shipment shipment = getOrCreateDelivery(order, clock.instant());
+        ShipmentStatus current = shipment.getStatus();
+        boolean alreadyDone = current == target;
+        if (!alreadyDone && !current.canAdvanceTo(target)) {
+            throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                    current.labelFor(ShipmentType.DELIVERY) + " 상태에서는 "
+                            + target.labelFor(ShipmentType.DELIVERY) + " 처리를 할 수 없습니다.");
+        }
+        Long companyId = shipment.getDeliveryCompanyId();
+        String companyCode = null;
+        if (!isBlank(companyInput)) {
+            DeliveryCompany company = deliveryCompanyService.resolveEnabled(companyInput);
+            companyId = company.getDeliveryCompanyId();
+            companyCode = company.getCode();
+        } else if (companyId != null) {
+            companyCode = DeliveryCompanyService.companyCode(deliveryCompanyService.companiesById(), companyId);
+        }
+        return new ExternalTarget(
+                order.getOrderId(),
+                order.getOrderNo(),
+                order.getMemberId(),
+                shipment.getShipmentId(),
+                ShipmentType.DELIVERY,
+                null,
+                companyId,
+                companyCode,
+                new ShipmentCommand.Contact(order.getReceiverName(), order.getReceiverPhone(),
+                        order.getPostcode(), order.getAddress1(), order.getAddress2()),
+                order.getOrderMemo(),
+                alreadyDone);
+    }
+
+    /**
+     * Saves a vendor result on the delivery shipment and marks the API operation applied in the same transaction.
+     */
+    @Transactional
+    public ShipmentActionResponse applyDeliveryResult(
+            ExternalTarget target,
+            Long operationId,
+            Long providerId,
+            ProviderActionResult result,
+            ShipmentStatus to,
+            String description,
+            Long actorId) {
+        Shipment shipment = shipmentRepository.findById(target.shipmentId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "배송 정보를 찾을 수 없습니다."));
+        OrderEntity order = requireOrder(target.orderId());
+        applyResult(shipment, order, target.deliveryCompanyId(), providerId, result, to, description, actorId);
+        operationService.markApplied(operationId);
+        String message = result.message() != null ? result.message()
+                : to.labelFor(ShipmentType.DELIVERY) + " 처리되었습니다.";
+        return new ShipmentActionResponse(true, message, assembler.toView(shipment, true));
+    }
+
+    /** Current delivery view for a repeated click on an action that already went through. */
+    @Transactional(readOnly = true)
+    public ShipmentActionResponse alreadyDone(Long shipmentId, String message) {
+        Shipment shipment = shipmentRepository.findById(shipmentId).orElse(null);
+        return new ShipmentActionResponse(true, message, assembler.toView(shipment, true));
     }
 
     // ------------------------------------------------------------------ order status -> shipment
@@ -262,7 +297,8 @@ public class ShipmentService {
                     "관리자가 주문을 배송중으로 변경했습니다.", actorId);
             case DELIVERED -> advanceIfPossible(getOrCreateDelivery(order, now), order, ShipmentStatus.DELIVERED, now,
                     "관리자가 주문을 배송완료로 변경했습니다.", actorId);
-            case CANCELLED -> shipmentRepository.findByOrderIdAndShipmentType(orderId, ShipmentType.DELIVERY)
+            case CANCELLED -> shipmentRepository
+                    .findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(orderId, ShipmentType.DELIVERY)
                     .ifPresent(s -> advanceIfPossible(s, order, ShipmentStatus.CANCELLED, now,
                             "주문이 취소되어 배송이 취소되었습니다.", actorId));
             default -> {
@@ -274,7 +310,7 @@ public class ShipmentService {
 
     /** Applies a status derived from courier tracking. Moves forward only; no-op otherwise. */
     void applyTrackingStatus(Shipment shipment, ShipmentStatus target, Instant at) {
-        if (target == null || !shipment.getShipmentStatus().canAdvanceTo(target)) {
+        if (target == null || target == ShipmentStatus.CANCELLED || !shipment.getStatus().canAdvanceTo(target)) {
             return;
         }
         transition(shipment, null, target, at, null, null, true);
@@ -282,61 +318,84 @@ public class ShipmentService {
 
     // ------------------------------------------------------------------ return shipments
 
-    Shipment createReturnShipment(ReturnRequest request, Instant now) {
+    Shipment createReturnShipment(ReturnRequest request, ShipmentCommand.Contact contact, Instant now) {
         Shipment shipment = new Shipment();
         shipment.setOrderId(request.getOrderId());
         shipment.setReturnRequestId(request.getReturnRequestId());
         shipment.setShipmentType(ShipmentType.RETURN);
-        shipment.setShipmentStatus(ShipmentStatus.RETURN_REQUESTED);
-        shipment.setCreatedAt(now);
-        shipment.setUpdatedAt(now);
+        shipment.setStatus(ShipmentStatus.READY);
+        shipment.setContact(contact.name(), contact.phone(), contact.postalCode(), contact.address1(), contact.address2());
         Shipment saved = shipmentRepository.save(shipment);
-        addInternalEvent(saved, now, "반품이 신청되었습니다.", ShipmentStatus.RETURN_REQUESTED);
+        eventRepository.save(ShipmentTrackingEvent.internal(
+                saved.getShipmentId(), now, "반품이 접수되었습니다.", ShipmentStatus.READY, null));
         return saved;
     }
 
-    void deleteReturnShipment(Long returnRequestId) {
-        shipmentRepository.findByReturnRequestId(returnRequestId).ifPresent(shipmentRepository::delete);
-    }
-
     /**
-     * Updates the return shipment for an admin return action. Return-request statuses are managed by
-     * the caller, so this does not write back to the return request.
+     * Updates a return shipment for an admin / vendor return action. The return request's own status is managed by
+     * the caller, so this does not write back to it.
      */
-    Shipment updateReturnShipment(
-            ReturnRequest request,
+    void updateReturnShipment(
+            Shipment shipment,
             ShipmentStatus target,
-            String companyCode,
+            Long companyId,
             String trackingNumber,
+            Long providerId,
             Instant now,
             String description,
             Long actorId) {
-        Shipment shipment = shipmentRepository.findByReturnRequestId(request.getReturnRequestId())
-                .orElseGet(() -> createReturnShipment(request, now));
-        if (companyCode != null && trackingNumber != null) {
-            boolean changed = !companyCode.equals(shipment.getDeliveryCompany())
-                    || !trackingNumber.equals(shipment.getTrackingNumber());
-            if (changed) {
-                if (shipment.hasTrackingNumber()) {
-                    eventRepository.deleteByShipmentIdAndSource(shipment.getShipmentId(), TrackingEventSource.PROVIDER);
-                }
-                shipment.setDeliveryCompany(companyCode);
-                shipment.setTrackingNumber(trackingNumber);
-                shipment.setLastTrackingCheckedAt(null);
-                shipment.setLastTrackingError(null);
-                shipment.setTrackingFailCount(0);
-            }
+        if (companyId != null && trackingNumber != null) {
+            assignInvoice(shipment, companyId, trackingNumber);
         }
-        if (target != null && shipment.getShipmentStatus().canAdvanceTo(target)) {
+        if (providerId != null) {
+            shipment.setShippingProviderId(providerId);
+        }
+        if (target != null && shipment.getStatus().canAdvanceTo(target)) {
             transition(shipment, null, target, now, description, actorId, false);
         } else {
-            shipment.setUpdatedAt(now);
             shipmentRepository.save(shipment);
             if (description != null) {
-                addInternalEvent(shipment, now, description, shipment.getShipmentStatus());
+                addInternalEvent(shipment, now, description, shipment.getStatus(), actorId);
             }
         }
-        return shipment;
+    }
+
+    /** Cancels a return shipment that has not been picked up (reject / customer withdrawal). */
+    void cancelReturnShipment(Shipment shipment, Instant now, String description, Long actorId) {
+        if (shipment != null && shipment.getStatus().canAdvanceTo(ShipmentStatus.CANCELLED)) {
+            transition(shipment, null, ShipmentStatus.CANCELLED, now, description, actorId, false);
+        }
+    }
+
+    /** Vendor result on any shipment: invoice (if issued), vendor, and the status move. */
+    void applyResult(
+            Shipment shipment,
+            OrderEntity order,
+            Long companyId,
+            Long providerId,
+            ProviderActionResult result,
+            ShipmentStatus to,
+            String description,
+            Long actorId) {
+        Instant now = clock.instant();
+        if (!isBlank(result.trackingNumber())) {
+            if (companyId == null) {
+                throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
+                        "업체가 송장번호를 발급했지만 택배사 정보가 없어 저장할 수 없습니다. 택배사를 선택한 뒤 같은 버튼을 다시 눌러 주세요.");
+            }
+            assignInvoice(shipment, companyId, result.trackingNumber());
+        }
+        if (providerId != null) {
+            shipment.setShippingProviderId(providerId);
+        }
+        if (shipment.getStatus().canAdvanceTo(to)) {
+            transition(shipment, order, to, now, description, actorId, false);
+        } else {
+            shipmentRepository.save(shipment);
+            if (description != null) {
+                addInternalEvent(shipment, now, description, shipment.getStatus(), actorId);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ shared helpers
@@ -349,39 +408,52 @@ public class ShipmentService {
         return value;
     }
 
+    /**
+     * Points the shipment at an invoice; provider events of a replaced invoice are dropped.
+     *
+     * @return true when the invoice changed
+     */
+    boolean assignInvoice(Shipment shipment, Long companyId, String trackingInput) {
+        String trackingNumber = normalizeTrackingNumber(trackingInput);
+        boolean changed = !companyId.equals(shipment.getDeliveryCompanyId())
+                || !trackingNumber.equals(shipment.getTrackingNumber());
+        if (!changed) {
+            return false;
+        }
+        shipmentRepository.findFirstByDeliveryCompanyIdAndTrackingNumberAndStatusNot(
+                        companyId, trackingNumber, ShipmentStatus.CANCELLED)
+                .filter(other -> !other.getShipmentId().equals(shipment.getShipmentId()))
+                .ifPresent(other -> {
+                    throw new BusinessException(ErrorCode.CONFLICT, "이미 다른 배송에 등록된 송장번호입니다.");
+                });
+        if (shipment.hasTrackingNumber() && shipment.getShipmentId() != null) {
+            eventRepository.deleteByShipmentIdAndSource(shipment.getShipmentId(), TrackingEventSource.PROVIDER);
+        }
+        shipment.assignInvoice(companyId, trackingNumber);
+        return true;
+    }
+
     private ShipmentActionResponse registerInvoice(OrderEntity order, String companyInput, String trackingInput, Long actorId) {
         requireActionable(order);
         DeliveryCompany company = deliveryCompanyService.resolveEnabled(companyInput);
-        String trackingNumber = normalizeTrackingNumber(trackingInput);
         Instant now = clock.instant();
 
         Shipment shipment = getOrCreateDelivery(order, now);
-        if (shipment.getShipmentStatus().isFinal()) {
+        if (shipment.getStatus().isFinal()) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "배송이 완료되었거나 취소된 건은 송장을 변경할 수 없습니다.");
         }
-        boolean changed = !company.getCode().equals(shipment.getDeliveryCompany())
-                || !trackingNumber.equals(shipment.getTrackingNumber());
-        if (!changed) {
+        boolean correction = shipment.hasTrackingNumber();
+        if (!assignInvoice(shipment, company.getDeliveryCompanyId(), trackingInput)) {
             return new ShipmentActionResponse(true, "이미 등록된 송장번호입니다.", assembler.toView(shipment, true));
         }
-        boolean correction = shipment.hasTrackingNumber();
-        if (correction) {
-            eventRepository.deleteByShipmentIdAndSource(shipment.getShipmentId(), TrackingEventSource.PROVIDER);
-        }
-        shipment.setDeliveryCompany(company.getCode());
-        shipment.setTrackingNumber(trackingNumber);
-        shipment.setLastTrackingCheckedAt(null);
-        shipment.setLastTrackingError(null);
-        shipment.setTrackingFailCount(0);
-
+        String trackingNumber = shipment.getTrackingNumber();
         String description = (correction ? "송장번호가 변경되었습니다." : "상품이 발송되었습니다.")
-                + " (" + company.getCompanyName() + ")";
-        if (shipment.getShipmentStatus().canAdvanceTo(ShipmentStatus.IN_TRANSIT)) {
+                + " (" + company.getName() + ")";
+        if (shipment.getStatus().canAdvanceTo(ShipmentStatus.IN_TRANSIT)) {
             transition(shipment, order, ShipmentStatus.IN_TRANSIT, now, description, actorId, false);
         } else {
-            shipment.setUpdatedAt(now);
             shipmentRepository.save(shipment);
-            addInternalEvent(shipment, now, description, shipment.getShipmentStatus());
+            addInternalEvent(shipment, now, description, shipment.getStatus(), actorId);
         }
 
         auditLogService.record(actorId, "SHIPMENT_INVOICE_REGISTER", "ORDER", order.getOrderNo(),
@@ -389,7 +461,7 @@ public class ShipmentService {
                         + ShippingLogMasker.maskTrackingNumber(trackingNumber) + (correction ? ", correction" : ""));
         log.info("[SHIPPING] invoice registered orderId={} company={} trackingNumber={} status={} actorMemberId={}",
                 order.getOrderId(), company.getCode(), ShippingLogMasker.maskTrackingNumber(trackingNumber),
-                shipment.getShipmentStatus(), actorId);
+                shipment.getStatus(), actorId);
         return new ShipmentActionResponse(true,
                 correction ? "송장번호가 수정되었습니다." : "송장번호가 등록되었습니다.",
                 assembler.toView(shipment, true));
@@ -397,13 +469,13 @@ public class ShipmentService {
 
     private void advanceIfPossible(
             Shipment shipment, OrderEntity order, ShipmentStatus target, Instant now, String description, Long actorId) {
-        if (shipment.getShipmentStatus().canAdvanceTo(target)) {
+        if (shipment.getStatus().canAdvanceTo(target)) {
             transition(shipment, order, target, now, description, actorId, false);
         }
     }
 
     private Shipment getOrCreateDelivery(OrderEntity order, Instant now) {
-        return shipmentRepository.findByOrderIdAndShipmentType(order.getOrderId(), ShipmentType.DELIVERY)
+        return shipmentRepository.findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(order.getOrderId(), ShipmentType.DELIVERY)
                 .orElseGet(() -> {
                     if (!SHIPMENT_ORDER_STATUSES.contains(order.getOrderStatus())) {
                         throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "배송을 시작할 수 없는 주문 상태입니다.");
@@ -411,12 +483,10 @@ public class ShipmentService {
                     Shipment created = new Shipment();
                     created.setOrderId(order.getOrderId());
                     created.setShipmentType(ShipmentType.DELIVERY);
-                    created.setShipmentStatus(ShipmentStatus.PREPARING);
-                    created.setCreatedAt(now);
-                    created.setUpdatedAt(now);
-                    Shipment saved = shipmentRepository.save(created);
-                    addInternalEvent(saved, now, "상품 준비를 시작했습니다.", ShipmentStatus.PREPARING);
-                    syncOrderFromShipment(order, ShipmentStatus.PREPARING, now, null);
+                    created.setStatus(ShipmentStatus.READY);
+                    Shipment saved = shipmentRepository.saveAndFlush(created);
+                    addInternalEvent(saved, now, "상품 준비를 시작했습니다.", ShipmentStatus.READY, null);
+                    syncOrderFromShipment(order, ShipmentStatus.READY, now, null);
                     return saved;
                 });
     }
@@ -424,8 +494,8 @@ public class ShipmentService {
     /**
      * Single place for status changes.
      *
-     * @param order       the shipment's order, or null to load it
-     * @param description internal timeline entry; null when the courier's own events describe the change
+     * @param order        the shipment's order, or null to load it
+     * @param description  internal timeline entry; null when the courier's own events describe the change
      * @param fromTracking true when the change comes from courier tracking (also updates the return request)
      */
     private void transition(
@@ -436,14 +506,12 @@ public class ShipmentService {
             String description,
             Long actorId,
             boolean fromTracking) {
-        ShipmentStatus from = shipment.getShipmentStatus();
+        ShipmentStatus from = shipment.getStatus();
         Instant now = clock.instant();
-        shipment.setShipmentStatus(to);
-        applyTimestamps(shipment, to, at);
-        shipment.setUpdatedAt(now);
+        shipment.changeStatus(to, at);
         shipmentRepository.save(shipment);
         if (description != null) {
-            addInternalEvent(shipment, at, description, to);
+            addInternalEvent(shipment, at, description, to, actorId);
         }
 
         OrderEntity target = order != null ? order : orderRepository.findById(shipment.getOrderId()).orElse(null);
@@ -454,8 +522,9 @@ public class ShipmentService {
             syncReturnFromTracking(shipment, to, at);
         }
 
+        String companyCode = DeliveryCompanyService.companyCode(companies(shipment), shipment.getDeliveryCompanyId());
         log.info("[SHIPPING] status orderId={} type={} company={} trackingNumber={} from={} to={} source={}",
-                shipment.getOrderId(), shipment.getShipmentType(), shipment.getDeliveryCompany(),
+                shipment.getOrderId(), shipment.getShipmentType(), companyCode,
                 ShippingLogMasker.maskTrackingNumber(shipment.getTrackingNumber()), from, to,
                 fromTracking ? "TRACKING" : actorId == null ? "SYSTEM" : "ADMIN");
         eventPublisher.publishEvent(new ShipmentStatusChangedEvent(
@@ -466,29 +535,13 @@ public class ShipmentService {
                 shipment.getShipmentType(),
                 from,
                 to,
-                shipment.getDeliveryCompany(),
+                companyCode,
                 ShippingLogMasker.maskTrackingNumber(shipment.getTrackingNumber()),
                 at));
     }
 
-    private static void applyTimestamps(Shipment shipment, ShipmentStatus to, Instant at) {
-        if ((to == ShipmentStatus.PICKUP_REQUESTED || to == ShipmentStatus.RETURN_PICKUP_REQUESTED)
-                && shipment.getPickupRequestedAt() == null) {
-            shipment.setPickupRequestedAt(at);
-        }
-        boolean moving = (to.belongsTo(ShipmentType.DELIVERY) && to.getRank() >= ShipmentStatus.PICKED_UP.getRank())
-                || to == ShipmentStatus.RETURN_IN_TRANSIT || to == ShipmentStatus.RETURN_COMPLETED;
-        if (moving) {
-            if (shipment.getShippedAt() == null) {
-                shipment.setShippedAt(at);
-            }
-            if (shipment.getPickedUpAt() == null) {
-                shipment.setPickedUpAt(at);
-            }
-        }
-        if (to == ShipmentStatus.DELIVERED || to == ShipmentStatus.RETURN_COMPLETED) {
-            shipment.setDeliveredAt(at);
-        }
+    private Map<Long, DeliveryCompany> companies(Shipment shipment) {
+        return shipment.getDeliveryCompanyId() == null ? Map.of() : deliveryCompanyService.companiesById();
     }
 
     private void syncOrderFromShipment(OrderEntity order, ShipmentStatus to, Instant now, Long actorId) {
@@ -497,7 +550,7 @@ public class ShipmentService {
             return;
         }
         OrderStatus next = switch (to) {
-            case PREPARING, READY, PICKUP_REQUESTED -> OrderStatus.PREPARING;
+            case READY, WAYBILL_ISSUED, PICKUP_REQUESTED -> OrderStatus.PREPARING;
             case PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY -> OrderStatus.SHIPPED;
             case DELIVERED -> OrderStatus.DELIVERED;
             default -> null;
@@ -512,42 +565,28 @@ public class ShipmentService {
                 "from=" + current + ", to=" + next + ", shipment=" + to);
     }
 
+    /** Courier progress on a return parcel moves the return request forward (never backward). */
     private void syncReturnFromTracking(Shipment shipment, ShipmentStatus to, Instant at) {
         if (shipment.getReturnRequestId() == null) {
             return;
         }
         ReturnRequest request = returnRequestRepository.findById(shipment.getReturnRequestId()).orElse(null);
-        if (request == null) {
+        if (request == null || !RETURN_TRACKING_SYNCABLE.contains(request.getStatus())) {
             return;
         }
-        ReturnStatus current = request.getReturnStatus();
-        if (current == ReturnStatus.REFUNDED || current == ReturnStatus.REJECTED || current == ReturnStatus.RECEIVED) {
-            return;
-        }
-        if (to == ShipmentStatus.RETURN_IN_TRANSIT && current != ReturnStatus.IN_TRANSIT) {
-            request.setReturnStatus(ReturnStatus.IN_TRANSIT);
-            if (request.getPickedUpAt() == null) {
-                request.setPickedUpAt(at);
-            }
-        } else if (to == ShipmentStatus.RETURN_COMPLETED) {
-            request.setReturnStatus(ReturnStatus.RECEIVED);
+        if (to == ShipmentStatus.DELIVERED) {
+            request.setStatus(ReturnStatus.RECEIVED);
             request.setReceivedAt(at);
+        } else if (to.isMoving() && request.getStatus() != ReturnStatus.IN_PROGRESS) {
+            request.setStatus(ReturnStatus.IN_PROGRESS);
         } else {
             return;
         }
-        request.setUpdatedAt(clock.instant());
         returnRequestRepository.save(request);
     }
 
-    private void addInternalEvent(Shipment shipment, Instant at, String description, ShipmentStatus status) {
-        ShipmentTrackingEvent event = new ShipmentTrackingEvent();
-        event.setShipmentId(shipment.getShipmentId());
-        event.setSource(TrackingEventSource.INTERNAL);
-        event.setEventTime(at);
-        event.setDescription(description);
-        event.setStatus(status);
-        event.setCreatedAt(clock.instant());
-        eventRepository.save(event);
+    private void addInternalEvent(Shipment shipment, Instant at, String description, ShipmentStatus status, Long actorId) {
+        eventRepository.save(ShipmentTrackingEvent.internal(shipment.getShipmentId(), at, description, status, actorId));
     }
 
     private OrderEntity requireOrder(Long orderId) {
@@ -555,7 +594,7 @@ public class ShipmentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "주문을 찾을 수 없습니다."));
     }
 
-    private static void requireActionable(OrderEntity order) {
+    static void requireActionable(OrderEntity order) {
         OrderStatus status = order.getOrderStatus();
         if (status == OrderStatus.CANCEL_REQUESTED) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,

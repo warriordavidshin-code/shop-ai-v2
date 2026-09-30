@@ -16,11 +16,11 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
 
     List<ReturnRequest> findByOrderIdIn(Collection<Long> orderIds);
 
-    boolean existsByOrderIdAndReturnStatusNot(Long orderId, ReturnStatus status);
+    boolean existsByOrderIdAndStatusNotIn(Long orderId, Collection<ReturnStatus> statuses);
 
     Page<ReturnRequest> findAllByOrderByRequestedAtDesc(Pageable pageable);
 
-    Page<ReturnRequest> findByReturnStatusInOrderByRequestedAtDesc(Collection<ReturnStatus> statuses, Pageable pageable);
+    Page<ReturnRequest> findByStatusInOrderByRequestedAtDesc(Collection<ReturnStatus> statuses, Pageable pageable);
 
-    long countByReturnStatusIn(Collection<ReturnStatus> statuses);
+    long countByStatusIn(Collection<ReturnStatus> statuses);
 }

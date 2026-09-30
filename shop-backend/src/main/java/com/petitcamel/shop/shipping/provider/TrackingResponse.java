@@ -6,10 +6,9 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Provider-neutral tracking result. {@code status} and event statuses use the delivery-direction
- * values (PICKED_UP ... DELIVERED); the shipping service converts them for return shipments.
+ * Vendor-neutral tracking result. The same statuses apply to deliveries and returns.
  *
- * @param found  false when the provider has no record for the invoice yet
+ * @param found  false when the vendor has no record for the invoice yet
  * @param status latest mapped status, or null when it could not be mapped
  */
 public record TrackingResponse(
@@ -23,11 +22,18 @@ public record TrackingResponse(
         return new TrackingResponse(false, null, List.of(), message);
     }
 
+    /**
+     * @param externalEventId vendor event id when the vendor has one (used for de-duplication)
+     * @param providerStatus  the vendor's own status wording or code
+     * @param status          internal status it maps to, or null
+     */
     public record Event(
             Instant time,
+            String externalEventId,
+            String providerStatus,
+            ShipmentStatus status,
             String location,
-            String description,
-            ShipmentStatus status
+            String description
     ) {
     }
 }

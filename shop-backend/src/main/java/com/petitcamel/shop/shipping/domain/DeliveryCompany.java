@@ -1,22 +1,28 @@
 package com.petitcamel.shop.shipping.domain;
 
+import com.petitcamel.shop.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
-
+/** A courier (택배사) such as HANJIN or CJ. How its parcels are tracked is a {@link ShippingProvider} concern. */
 @Entity
 @Table(name = "delivery_company")
-public class DeliveryCompany {
+public class DeliveryCompany extends BaseEntity {
 
     @Id
-    @Column(name = "code", length = 30)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "delivery_company_id")
+    private Long deliveryCompanyId;
+
+    @Column(name = "code", nullable = false, length = 30)
     private String code;
 
-    @Column(name = "company_name", nullable = false, length = 50)
-    private String companyName;
+    @Column(name = "name", nullable = false, length = 50)
+    private String name;
 
     /** URL with a {@code {trackingNumber}} placeholder, opened by the "배송조회" link. */
     @Column(name = "tracking_url_template", length = 300)
@@ -28,11 +34,13 @@ public class DeliveryCompany {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    public Long getDeliveryCompanyId() {
+        return deliveryCompanyId;
+    }
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    public void setDeliveryCompanyId(Long deliveryCompanyId) {
+        this.deliveryCompanyId = deliveryCompanyId;
+    }
 
     public String getCode() {
         return code;
@@ -42,12 +50,12 @@ public class DeliveryCompany {
         this.code = code;
     }
 
-    public String getCompanyName() {
-        return companyName;
+    public String getName() {
+        return name;
     }
 
-    public void setCompanyName(String companyName) {
-        this.companyName = companyName;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getTrackingUrlTemplate() {
@@ -72,21 +80,5 @@ public class DeliveryCompany {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

@@ -3,15 +3,19 @@ package com.petitcamel.shop.shipping.dto;
 import com.petitcamel.shop.shipping.domain.ReturnReason;
 import com.petitcamel.shop.shipping.domain.ReturnStatus;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Return request plus the parcel fields of its RETURN shipment (pickup address, courier, invoice, shipment status),
+ * so screens get the whole return in one object.
+ */
 public record ReturnRequestResponse(
         Long returnRequestId,
         Long orderId,
         ReturnReason reason,
         String reasonLabel,
-        String memo,
+        String reasonText,
+        String customerMemo,
         ReturnStatus status,
         String statusName,
         String pickupName,
@@ -23,9 +27,11 @@ public record ReturnRequestResponse(
         String pickupDeliveryCompanyName,
         String pickupTrackingNumber,
         String pickupTrackingUrl,
+        String shipmentStatus,
+        String shipmentStatusName,
         boolean freeReturn,
-        BigDecimal returnShippingFee,
-        BigDecimal refundAmount,
+        long returnShippingFee,
+        Long refundAmount,
         boolean restocked,
         String rejectReason,
         Instant requestedAt,
@@ -34,6 +40,7 @@ public record ReturnRequestResponse(
         Instant pickedUpAt,
         Instant receivedAt,
         Instant completedAt,
-        Instant rejectedAt
+        Instant rejectedAt,
+        Instant cancelledAt
 ) {
 }

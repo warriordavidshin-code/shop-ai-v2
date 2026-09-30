@@ -1,25 +1,25 @@
 /** Customer progress bar: 상품준비 → 집하완료 → 배송중 → 배송출발 → 배송완료. */
 export const DELIVERY_STEPS = [
-  { key: "PREPARING", label: "상품준비" },
+  { key: "READY", label: "상품준비" },
   { key: "PICKED_UP", label: "집하완료" },
   { key: "IN_TRANSIT", label: "배송중" },
   { key: "OUT_FOR_DELIVERY", label: "배송출발" },
   { key: "DELIVERED", label: "배송완료" },
 ] as const;
 
+/** Return business flow (the physical pickup is shown by the return shipment's status). */
 export const RETURN_STEPS = [
   { key: "REQUESTED", label: "반품신청" },
   { key: "APPROVED", label: "반품승인" },
   { key: "PICKUP_REQUESTED", label: "수거요청" },
-  { key: "PICKED_UP", label: "기사 방문수거" },
-  { key: "IN_TRANSIT", label: "반품배송중" },
+  { key: "IN_PROGRESS", label: "반품배송중" },
   { key: "RECEIVED", label: "반품입고" },
-  { key: "REFUNDED", label: "환불완료" },
+  { key: "COMPLETED", label: "반품완료" },
 ] as const;
 
 const SHIPMENT_STEP_INDEX: Record<string, number> = {
-  PREPARING: 0,
   READY: 0,
+  WAYBILL_ISSUED: 0,
   PICKUP_REQUESTED: 0,
   PICKED_UP: 1,
   IN_TRANSIT: 2,
@@ -52,28 +52,29 @@ export function returnStepIndex(returnStatus: string | null | undefined): number
   return RETURN_STEPS.findIndex((step) => step.key === returnStatus);
 }
 
+/** Customers may withdraw a return until the pickup is booked. */
+export const CUSTOMER_CANCELLABLE_RETURN = new Set(["REQUESTED", "APPROVED"]);
+
 export const RETURN_STATUS_LABELS: Record<string, string> = {
   REQUESTED: "반품신청",
   APPROVED: "반품승인",
   PICKUP_REQUESTED: "반품수거요청",
-  PICKED_UP: "기사방문수거",
-  IN_TRANSIT: "반품배송중",
+  IN_PROGRESS: "반품배송중",
   RECEIVED: "반품입고",
-  REFUNDED: "환불완료",
+  COMPLETED: "반품완료",
   REJECTED: "반품거절",
+  CANCELLED: "반품철회",
 };
 
+/** Labels of a delivery (outbound) shipment. Return shipments come with their own label from the API. */
 export const SHIPMENT_STATUS_LABELS: Record<string, string> = {
-  PREPARING: "상품준비중",
-  READY: "배송준비",
-  PICKUP_REQUESTED: "수거요청",
+  READY: "상품준비중",
+  WAYBILL_ISSUED: "송장발급",
+  PICKUP_REQUESTED: "집하요청",
   PICKED_UP: "집하완료",
   IN_TRANSIT: "배송중",
   OUT_FOR_DELIVERY: "배송출발",
   DELIVERED: "배송완료",
-  RETURN_REQUESTED: "반품요청",
-  RETURN_PICKUP_REQUESTED: "반품수거요청",
-  RETURN_IN_TRANSIT: "반품배송중",
-  RETURN_COMPLETED: "반품입고",
   CANCELLED: "배송취소",
+  FAILED: "배송실패",
 };

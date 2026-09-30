@@ -28,12 +28,4 @@ class TrackingStatusMapperTest {
         assertThat(TrackingStatusMapper.fromSweetTrackerLevel(5)).isEqualTo(ShipmentStatus.OUT_FOR_DELIVERY);
         assertThat(TrackingStatusMapper.fromSweetTrackerLevel(6)).isEqualTo(ShipmentStatus.DELIVERED);
     }
-
-    @Test
-    void convertsToReturnDirection() {
-        assertThat(TrackingStatusMapper.toReturnStatus(ShipmentStatus.PICKED_UP)).isEqualTo(ShipmentStatus.RETURN_IN_TRANSIT);
-        assertThat(TrackingStatusMapper.toReturnStatus(ShipmentStatus.OUT_FOR_DELIVERY)).isEqualTo(ShipmentStatus.RETURN_IN_TRANSIT);
-        assertThat(TrackingStatusMapper.toReturnStatus(ShipmentStatus.DELIVERED)).isEqualTo(ShipmentStatus.RETURN_COMPLETED);
-        assertThat(TrackingStatusMapper.toReturnStatus(null)).isNull();
-    }
 }

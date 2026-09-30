@@ -9,7 +9,14 @@ import { cn } from "@/lib/utils";
 import { formatKrw } from "@/lib/format";
 import { ApiError } from "@/lib/api/client";
 import { formatDateTime } from "@/features/orders/status";
-import { getReturnInfo, getTracking, requestReturn, type ReturnInfo, type Tracking } from "@/features/shipping/api";
+import {
+  cancelReturn,
+  getReturnInfo,
+  getTracking,
+  requestReturn,
+  type ReturnInfo,
+  type Tracking,
+} from "@/features/shipping/api";
 import { RETURN_STEPS, returnStepIndex } from "@/features/shipping/progress";
 
 type Props = {
@@ -31,6 +38,7 @@ export function ReturnPanel(props: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [memo, setMemo] = useState("");
+  const [customerMemo, setCustomerMemo] = useState("");
   const [pickupName, setPickupName] = useState(props.receiverName);
   const [pickupPhone, setPickupPhone] = useState(props.receiverPhone);
   const [postcode, setPostcode] = useState(props.postcode);
@@ -77,6 +85,7 @@ export function ReturnPanel(props: Props) {
       await requestReturn(orderId, {
         returnReason: reason,
         returnMemo: memo.trim() || undefined,
+        customerMemo: customerMemo.trim() || undefined,
         pickupName: pickupName.trim(),
         pickupPhone: pickupPhone.trim(),
         pickupPostcode: postcode,
@@ -88,6 +97,21 @@ export function ReturnPanel(props: Props) {
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "반품 신청에 실패했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCancel() {
+    if (!window.confirm("반품 신청을 철회할까요?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelReturn(orderId);
+      await load();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "반품 철회에 실패했습니다.");
     } finally {
       setBusy(false);
     }
@@ -112,7 +136,8 @@ export function ReturnPanel(props: Props) {
   );
 
   let body: React.ReactNode = null;
-  if (current && current.status !== "REJECTED") {
+  const withdrawn = current?.status === "REJECTED" || current?.status === "CANCELLED";
+  if (current && !withdrawn) {
     const step = returnStepIndex(current.status);
     body = (
       <div className="flex flex-col gap-3">
@@ -136,7 +161,7 @@ export function ReturnPanel(props: Props) {
           <dt className="text-muted-foreground">반품 사유</dt>
           <dd>
             {current.reasonLabel}
-            {current.memo ? <span className="text-muted-foreground"> · {current.memo}</span> : null}
+            {current.reasonText ? <span className="text-muted-foreground"> · {current.reasonText}</span> : null}
           </dd>
           <dt className="text-muted-foreground">신청일</dt>
           <dd>{formatDateTime(current.requestedAt)}</dd>
@@ -144,6 +169,18 @@ export function ReturnPanel(props: Props) {
           <dd className="break-words">
             ({current.pickupPostcode}) {current.pickupAddress1} {current.pickupAddress2}
           </dd>
+          {current.customerMemo ? (
+            <>
+              <dt className="text-muted-foreground">수거 요청</dt>
+              <dd className="break-words">{current.customerMemo}</dd>
+            </>
+          ) : null}
+          {current.shipmentStatusName ? (
+            <>
+              <dt className="text-muted-foreground">수거 현황</dt>
+              <dd>{current.shipmentStatusName}</dd>
+            </>
+          ) : null}
           <dt className="text-muted-foreground">환불 예정</dt>
           <dd className="tabular-nums">
             {formatKrw(current.refundAmount ?? 0)}원
@@ -166,7 +203,14 @@ export function ReturnPanel(props: Props) {
             </Button>
           </div>
         ) : null}
-        {current.status === "REFUNDED" ? (
+        {info.canCancel ? (
+          <div>
+            <Button variant="secondary" className="h-9 px-4" onClick={() => void onCancel()} disabled={busy}>
+              {busy ? "처리 중..." : "반품 철회"}
+            </Button>
+          </div>
+        ) : null}
+        {current.status === "COMPLETED" ? (
           <p className="text-sm text-brand">환불이 완료되었습니다. 결제 수단으로 환불됩니다.</p>
         ) : (
           notice
@@ -201,6 +245,17 @@ export function ReturnPanel(props: Props) {
             value={memo}
             maxLength={1000}
             onChange={(e) => setMemo(e.target.value)}
+            disabled={busy}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">수거 요청사항 (선택)</span>
+          <input
+            className="h-11 rounded-xl border border-border px-3"
+            value={customerMemo}
+            maxLength={500}
+            placeholder="예: 경비실에 맡겨 둘게요"
+            onChange={(e) => setCustomerMemo(e.target.value)}
             disabled={busy}
           />
         </label>
@@ -263,6 +318,9 @@ export function ReturnPanel(props: Props) {
             이전 반품 신청이 거절되었습니다.
             {current.rejectReason ? <span className="text-danger"> 사유: {current.rejectReason}</span> : null}
           </p>
+        ) : null}
+        {current?.status === "CANCELLED" ? (
+          <p className="rounded-lg bg-surface-soft p-3 text-sm">이전 반품 신청을 철회했습니다.</p>
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">배송이 완료된 상품은 반품을 신청할 수 있습니다.</p>

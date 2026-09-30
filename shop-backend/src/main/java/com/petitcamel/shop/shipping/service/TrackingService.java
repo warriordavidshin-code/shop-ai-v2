@@ -5,18 +5,18 @@ import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.order.domain.OrderEntity;
 import com.petitcamel.shop.order.repository.OrderEntityRepository;
 import com.petitcamel.shop.shipping.config.ShippingProperties;
-import com.petitcamel.shop.shipping.domain.DeliveryCompany;
+import com.petitcamel.shop.shipping.domain.ProviderCapability;
 import com.petitcamel.shop.shipping.domain.Shipment;
 import com.petitcamel.shop.shipping.domain.ShipmentStatus;
 import com.petitcamel.shop.shipping.domain.ShipmentTrackingEvent;
 import com.petitcamel.shop.shipping.domain.ShipmentType;
-import com.petitcamel.shop.shipping.domain.TrackingEventSource;
+import com.petitcamel.shop.shipping.domain.ShippingOperationStatus;
+import com.petitcamel.shop.shipping.domain.ShippingOperationType;
 import com.petitcamel.shop.shipping.dto.ShipmentActionResponse;
 import com.petitcamel.shop.shipping.dto.TrackingResult;
-import com.petitcamel.shop.shipping.provider.ShippingProvider;
+import com.petitcamel.shop.shipping.provider.ShippingProviderException;
 import com.petitcamel.shop.shipping.provider.ShippingProviderRegistry;
 import com.petitcamel.shop.shipping.provider.TrackingResponse;
-import com.petitcamel.shop.shipping.provider.TrackingStatusMapper;
 import com.petitcamel.shop.shipping.repository.ShipmentRepository;
 import com.petitcamel.shop.shipping.repository.ShipmentTrackingEventRepository;
 import com.petitcamel.shop.shipping.support.ShippingLogMasker;
@@ -29,17 +29,24 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
- * Courier tracking sync. The provider call happens outside any DB transaction; results are applied in a
- * short transaction afterwards. A shipment checked within {@code shipping.tracking.cache-minutes} is served
- * from the DB. Provider failures are recorded on the shipment and never propagate to the caller.
+ * Courier tracking sync. The vendor call happens outside any DB transaction; results are applied in a short
+ * transaction afterwards. Vendor events are appended only when new (deduplicated by the vendor's event id, or by a
+ * hash of the event content), so repeated polling never duplicates the timeline. A shipment checked within
+ * {@code shipping.tracking.cache-minutes} is served from the DB. Vendor failures are recorded on the shipment and
+ * in {@code shipping_api_operation}, and never propagate to the caller.
  */
 @Service
 public class TrackingService {
@@ -51,7 +58,7 @@ public class TrackingService {
 
     public enum RefreshOutcome { UPDATED, NOT_FOUND, UNSUPPORTED_COMPANY, FAILED, CONFLICT, SKIPPED }
 
-    private record Snapshot(Long shipmentId, Long orderId, ShipmentType type, String company,
+    private record Snapshot(Long shipmentId, Long orderId, ShipmentType type, Long companyId,
                             String trackingNumber, ShipmentStatus status) {
     }
 
@@ -61,6 +68,7 @@ public class TrackingService {
     private final ShippingProviderRegistry providerRegistry;
     private final DeliveryCompanyService deliveryCompanyService;
     private final ShipmentService shipmentService;
+    private final ShippingOperationService operationService;
     private final ShipmentViewAssembler assembler;
     private final ShippingProperties properties;
     private final TransactionTemplate writeTx;
@@ -74,6 +82,7 @@ public class TrackingService {
             ShippingProviderRegistry providerRegistry,
             DeliveryCompanyService deliveryCompanyService,
             ShipmentService shipmentService,
+            ShippingOperationService operationService,
             ShipmentViewAssembler assembler,
             ShippingProperties properties,
             PlatformTransactionManager transactionManager,
@@ -84,6 +93,7 @@ public class TrackingService {
         this.providerRegistry = providerRegistry;
         this.deliveryCompanyService = deliveryCompanyService;
         this.shipmentService = shipmentService;
+        this.operationService = operationService;
         this.assembler = assembler;
         this.properties = properties;
         this.writeTx = new TransactionTemplate(transactionManager);
@@ -98,7 +108,7 @@ public class TrackingService {
         OrderEntity order = orderRepository.findById(orderId)
                 .filter(o -> Objects.equals(o.getMemberId(), memberId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "주문을 찾을 수 없습니다."));
-        Shipment shipment = shipmentRepository.findByOrderIdAndShipmentType(orderId, type).orElse(null);
+        Shipment shipment = latest(orderId, type);
         if (shipment != null && isStale(shipment)) {
             try {
                 refresh(shipment.getShipmentId());
@@ -111,11 +121,13 @@ public class TrackingService {
 
     /** Admin "배송조회 새로고침": bypasses the cache but not the short anti-hammering interval. */
     public ShipmentActionResponse adminRefresh(Long orderId, ShipmentType type) {
-        Shipment shipment = shipmentRepository.findByOrderIdAndShipmentType(orderId, type)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "배송 정보가 없습니다."));
+        Shipment shipment = latest(orderId, type);
+        if (shipment == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "배송 정보가 없습니다.");
+        }
         if (!providerRegistry.externalTrackingEnabled()) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION,
-                    "외부 배송조회 연동이 설정되지 않았습니다. (SHIPPING_PROVIDER / SHIPPING_API_KEY 확인)");
+                    "외부 배송조회 연동이 설정되지 않았습니다. (배송 API 업체 설정 / SHIPPING_API_KEY 확인)");
         }
         if (!shipment.hasTrackingNumber()) {
             throw new BusinessException(ErrorCode.BUSINESS_RULE_VIOLATION, "송장번호를 먼저 등록해 주세요.");
@@ -142,9 +154,10 @@ public class TrackingService {
                         .orElse(null)));
     }
 
-    /** Scheduler entry point: refreshes in-transit shipments whose cache has expired. */
+    /** Scheduler entry point: refreshes moving shipments whose cache has expired. */
     public int refreshDueShipments() {
-        if (!providerRegistry.externalTrackingEnabled()) {
+        ShippingProviderRegistry.ActiveProvider provider = providerRegistry.resolve(ProviderCapability.TRACKING).orElse(null);
+        if (provider == null) {
             return 0;
         }
         Instant checkedBefore = clock.instant().minus(Duration.ofMinutes(properties.getTracking().getCacheMinutes()));
@@ -169,61 +182,86 @@ public class TrackingService {
             }
         }
         log.info("[SHIPPING] scheduled tracking provider={} total={} updated={} failed={}",
-                providerRegistry.active().name(), ids.size(), updated, failed);
+                provider.code(), ids.size(), updated, failed);
         return updated;
     }
 
     public RefreshOutcome refresh(Long shipmentId) {
         Snapshot snap = readTx.execute(status -> shipmentRepository.findById(shipmentId)
-                .map(s -> new Snapshot(s.getShipmentId(), s.getOrderId(), s.getShipmentType(), s.getDeliveryCompany(),
-                        s.getTrackingNumber(), s.getShipmentStatus()))
+                .map(s -> new Snapshot(s.getShipmentId(), s.getOrderId(), s.getShipmentType(), s.getDeliveryCompanyId(),
+                        s.getTrackingNumber(), s.getStatus()))
                 .orElse(null));
-        if (snap == null || snap.trackingNumber() == null || snap.company() == null
-                || !ShipmentStatus.TRACKABLE.contains(snap.status()) || !providerRegistry.externalTrackingEnabled()) {
+        if (snap == null || snap.trackingNumber() == null || snap.companyId() == null
+                || !ShipmentStatus.TRACKABLE.contains(snap.status())) {
             return RefreshOutcome.SKIPPED;
         }
-        ShippingProvider provider = providerRegistry.active();
+        ShippingProviderRegistry.ActiveProvider provider = providerRegistry.resolve(ProviderCapability.TRACKING).orElse(null);
+        if (provider == null) {
+            return RefreshOutcome.SKIPPED;
+        }
         String maskedNumber = ShippingLogMasker.maskTrackingNumber(snap.trackingNumber());
 
-        String providerCode = deliveryCompanyService.providerCode(snap.company(), provider.name()).orElse(null);
-        if (providerCode == null) {
+        String externalCode = deliveryCompanyService.externalCode(snap.companyId(), provider.id()).orElse(null);
+        if (externalCode == null) {
             markChecked(snap, null, false);
-            log.info("[SHIPPING] provider={} orderId={} company={} trackingNumber={} status={} result=UNSUPPORTED_COMPANY",
-                    provider.name(), snap.orderId(), snap.company(), maskedNumber, snap.status());
+            log.info("[SHIPPING] provider={} orderId={} companyId={} trackingNumber={} status={} result=UNSUPPORTED_COMPANY",
+                    provider.code(), snap.orderId(), snap.companyId(), maskedNumber, snap.status());
             return RefreshOutcome.UNSUPPORTED_COMPANY;
         }
 
         TrackingResponse response;
         try {
-            response = provider.tracking(providerCode, snap.trackingNumber());
+            response = provider.client().tracking(externalCode, snap.trackingNumber());
         } catch (RuntimeException ex) {
             String error = ShippingLogMasker.scrub(
                     ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage(), properties.getApiKey());
             markChecked(snap, error, true);
-            log.warn("[SHIPPING] provider={} orderId={} company={} trackingNumber={} status={} result=FAILED error={}",
-                    provider.name(), snap.orderId(), snap.company(), maskedNumber, snap.status(), error);
+            ShippingProviderException providerError = ex instanceof ShippingProviderException spe ? spe
+                    : new ShippingProviderException(error, null, ex.getClass().getSimpleName(), false);
+            recordFailure(provider.code(), snap, providerError, error);
+            log.warn("[SHIPPING] provider={} orderId={} companyId={} trackingNumber={} status={} result=FAILED error={}",
+                    provider.code(), snap.orderId(), snap.companyId(), maskedNumber, snap.status(), error);
             return RefreshOutcome.FAILED;
         }
 
         try {
-            Boolean applied = writeTx.execute(status -> apply(snap, response));
+            Boolean applied = writeTx.execute(status -> apply(snap, provider.id(), response));
             RefreshOutcome outcome = !Boolean.TRUE.equals(applied)
                     ? RefreshOutcome.SKIPPED
                     : response.found() ? RefreshOutcome.UPDATED : RefreshOutcome.NOT_FOUND;
-            log.info("[SHIPPING] provider={} orderId={} company={} trackingNumber={} status={} result={}",
-                    provider.name(), snap.orderId(), snap.company(), maskedNumber,
+            log.info("[SHIPPING] provider={} orderId={} companyId={} trackingNumber={} status={} result={}",
+                    provider.code(), snap.orderId(), snap.companyId(), maskedNumber,
                     response.status() == null ? snap.status() : response.status(), outcome);
             return outcome;
         } catch (ObjectOptimisticLockingFailureException ex) {
-            log.info("[SHIPPING] provider={} orderId={} company={} trackingNumber={} result=CONFLICT",
-                    provider.name(), snap.orderId(), snap.company(), maskedNumber);
+            log.info("[SHIPPING] provider={} orderId={} companyId={} trackingNumber={} result=CONFLICT",
+                    provider.code(), snap.orderId(), snap.companyId(), maskedNumber);
             return RefreshOutcome.CONFLICT;
         }
     }
 
+    /** Content hash used to recognise a vendor event seen before when the vendor gives no event id. */
+    static String rawHash(TrackingResponse.Event event) {
+        String source = (event.time() == null ? "" : String.valueOf(event.time().toEpochMilli()))
+                + "|" + nullToEmpty(event.providerStatus())
+                + "|" + nullToEmpty(event.location())
+                + "|" + nullToEmpty(event.description());
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private Shipment latest(Long orderId, ShipmentType type) {
+        return readTx.execute(status -> shipmentRepository
+                .findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(orderId, type).orElse(null));
+    }
+
     private boolean isStale(Shipment shipment) {
-        if (!providerRegistry.externalTrackingEnabled() || !shipment.hasTrackingNumber()
-                || !ShipmentStatus.TRACKABLE.contains(shipment.getShipmentStatus())) {
+        if (!shipment.hasTrackingNumber() || !ShipmentStatus.TRACKABLE.contains(shipment.getStatus())
+                || !providerRegistry.externalTrackingEnabled()) {
             return false;
         }
         Instant last = shipment.getLastTrackingCheckedAt();
@@ -231,37 +269,47 @@ public class TrackingService {
                 || last.isBefore(clock.instant().minus(Duration.ofMinutes(properties.getTracking().getCacheMinutes())));
     }
 
-    private Boolean apply(Snapshot snap, TrackingResponse response) {
+    private Boolean apply(Snapshot snap, Long providerId, TrackingResponse response) {
         Shipment shipment = shipmentRepository.findById(snap.shipmentId()).orElse(null);
         if (shipment == null
                 || !Objects.equals(shipment.getTrackingNumber(), snap.trackingNumber())
-                || !Objects.equals(shipment.getDeliveryCompany(), snap.company())) {
+                || !Objects.equals(shipment.getDeliveryCompanyId(), snap.companyId())) {
             return false;
         }
         Instant now = clock.instant();
         shipment.setLastTrackingCheckedAt(now);
         shipment.setLastTrackingError(null);
         shipment.setTrackingFailCount(0);
+        if (shipment.getShippingProviderId() == null) {
+            shipment.setShippingProviderId(providerId);
+        }
         if (response.found()) {
-            boolean isReturn = shipment.getShipmentType() == ShipmentType.RETURN;
-            eventRepository.deleteByShipmentIdAndSource(shipment.getShipmentId(), TrackingEventSource.PROVIDER);
-            for (TrackingResponse.Event e : response.events()) {
-                ShipmentTrackingEvent event = new ShipmentTrackingEvent();
-                event.setShipmentId(shipment.getShipmentId());
-                event.setSource(TrackingEventSource.PROVIDER);
-                event.setEventTime(e.time() == null ? now : e.time());
-                event.setLocation(truncate(e.location(), 100));
-                event.setDescription(truncate(e.description() == null || e.description().isBlank()
-                        ? "배송 상태 변경" : e.description(), 300));
-                event.setStatus(isReturn ? TrackingStatusMapper.toReturnStatus(e.status()) : e.status());
-                event.setCreatedAt(now);
-                eventRepository.save(event);
-            }
-            ShipmentStatus target = isReturn ? TrackingStatusMapper.toReturnStatus(response.status()) : response.status();
-            shipmentService.applyTrackingStatus(shipment, target, eventTimeFor(response, now));
+            appendNewEvents(shipment.getShipmentId(), response.events(), now);
+            shipmentService.applyTrackingStatus(shipment, response.status(), eventTimeFor(response, now));
         }
         shipmentRepository.save(shipment);
         return true;
+    }
+
+    private void appendNewEvents(Long shipmentId, List<TrackingResponse.Event> events, Instant now) {
+        Set<String> seenHashes = new HashSet<>(eventRepository.findRawHashes(shipmentId));
+        Set<String> seenIds = new HashSet<>(eventRepository.findExternalEventIds(shipmentId));
+        for (TrackingResponse.Event e : events) {
+            String externalId = truncate(e.externalEventId(), 100);
+            String hash = rawHash(e);
+            if ((externalId != null && !seenIds.add(externalId)) || !seenHashes.add(hash)) {
+                continue;
+            }
+            eventRepository.save(ShipmentTrackingEvent.provider(
+                    shipmentId,
+                    e.time() == null ? now : e.time(),
+                    externalId,
+                    truncate(e.providerStatus(), 100),
+                    e.status(),
+                    truncate(e.location(), 100),
+                    truncate(e.description() == null || e.description().isBlank() ? "배송 상태 변경" : e.description(), 300),
+                    hash));
+        }
     }
 
     private void markChecked(Snapshot snap, String error, boolean failure) {
@@ -277,26 +325,40 @@ public class TrackingService {
         }
     }
 
+    private void recordFailure(String providerCode, Snapshot snap, ShippingProviderException error, String scrubbed) {
+        try {
+            ShippingProviderException safe = new ShippingProviderException(
+                    scrubbed, error.getHttpStatus(), error.getErrorCode(), error.isOutcomeUnknown());
+            operationService.record(new ShippingOperationService.Request(
+                            providerCode, ShippingOperationType.TRACKING, snap.orderId(), snap.shipmentId(), null, null),
+                    ShippingOperationStatus.FAILED, safe, null);
+        } catch (RuntimeException ex) {
+            log.warn("[SHIPPING] failed to record tracking failure shipmentId={} error={}",
+                    snap.shipmentId(), ex.getClass().getSimpleName());
+        }
+    }
+
     private TrackingResult buildResult(OrderEntity order, ShipmentType type) {
         boolean external = providerRegistry.externalTrackingEnabled();
-        Shipment shipment = shipmentRepository.findByOrderIdAndShipmentType(order.getOrderId(), type).orElse(null);
+        Shipment shipment = shipmentRepository
+                .findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(order.getOrderId(), type).orElse(null);
         if (shipment == null) {
             return new TrackingResult(order.getOrderId(), order.getOrderNo(), order.getOrderStatus().name(), type.name(),
                     null, null, null, null, null, null, null, null, null, external, null, List.of());
         }
-        Map<String, DeliveryCompany> companies = assembler.companies();
+        ShipmentViewAssembler.Refs refs = assembler.refs();
         String message = external && shipment.getLastTrackingError() != null ? TEMPORARY_FAILURE_MESSAGE : null;
         return new TrackingResult(
                 order.getOrderId(),
                 order.getOrderNo(),
                 order.getOrderStatus().name(),
                 type.name(),
-                shipment.getDeliveryCompany(),
-                DeliveryCompanyService.companyName(companies, shipment.getDeliveryCompany()),
+                refs.companyCode(shipment.getDeliveryCompanyId()),
+                refs.companyName(shipment.getDeliveryCompanyId()),
                 shipment.getTrackingNumber(),
-                DeliveryCompanyService.trackingUrl(companies, shipment.getDeliveryCompany(), shipment.getTrackingNumber()),
-                shipment.getShipmentStatus().name(),
-                shipment.getShipmentStatus().getLabel(),
+                refs.trackingUrl(shipment.getDeliveryCompanyId(), shipment.getTrackingNumber()),
+                shipment.getStatus().name(),
+                shipment.getStatus().labelFor(shipment.getShipmentType()),
                 shipment.getShippedAt(),
                 shipment.getDeliveredAt(),
                 shipment.getLastTrackingCheckedAt(),
@@ -314,6 +376,10 @@ public class TrackingService {
                 .map(TrackingResponse.Event::time)
                 .reduce((first, second) -> second)
                 .orElse(fallback);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private static String truncate(String value, int max) {

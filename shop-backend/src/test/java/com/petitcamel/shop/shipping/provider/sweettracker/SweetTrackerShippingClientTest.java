@@ -12,11 +12,11 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class SweetTrackerShippingProviderTest {
+class SweetTrackerShippingClientTest {
 
     private final ShippingProperties properties = new ShippingProperties();
-    private final SweetTrackerShippingProvider provider =
-            new SweetTrackerShippingProvider(properties, new ObjectMapper());
+    private final SweetTrackerShippingClient provider =
+            new SweetTrackerShippingClient(properties, new ObjectMapper());
 
     @Test
     void notConfiguredWithoutApiKey() {
@@ -46,6 +46,7 @@ class SweetTrackerShippingProviderTest {
         assertThat(response.events().get(0).description()).isEqualTo("집화처리");
         assertThat(response.events().get(0).status()).isEqualTo(ShipmentStatus.PICKED_UP);
         assertThat(response.events().get(0).time()).isEqualTo(Instant.parse("2026-09-29T00:00:00Z"));
+        assertThat(response.events().get(0).providerStatus()).isEqualTo("집화처리");
         assertThat(response.events().get(1).location()).isEqualTo("대전HUB");
     }
 

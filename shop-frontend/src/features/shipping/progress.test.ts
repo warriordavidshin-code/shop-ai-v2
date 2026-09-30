@@ -11,6 +11,7 @@ describe("delivery progress", () => {
 
   it("treats pre-pickup statuses as 상품준비", () => {
     expect(deliveryStepIndex("PREPARING", "READY")).toBe(0);
+    expect(deliveryStepIndex("PREPARING", "WAYBILL_ISSUED")).toBe(0);
     expect(deliveryStepIndex("PREPARING", "PICKUP_REQUESTED")).toBe(0);
   });
 
@@ -27,8 +28,10 @@ describe("delivery progress", () => {
 
   it("indexes return steps", () => {
     expect(returnStepIndex("REQUESTED")).toBe(0);
-    expect(returnStepIndex("REFUNDED")).toBe(6);
+    expect(returnStepIndex("IN_PROGRESS")).toBe(3);
+    expect(returnStepIndex("COMPLETED")).toBe(5);
     expect(returnStepIndex("REJECTED")).toBe(-1);
+    expect(returnStepIndex("CANCELLED")).toBe(-1);
     expect(returnStepIndex(null)).toBe(-1);
   });
 });

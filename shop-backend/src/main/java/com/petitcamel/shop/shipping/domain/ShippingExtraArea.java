@@ -1,5 +1,6 @@
 package com.petitcamel.shop.shipping.domain;
 
+import com.petitcamel.shop.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,45 +10,46 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-import java.time.Instant;
-
+/** Postcode range with a Jeju / remote-island surcharge. */
 @Entity
 @Table(name = "shipping_extra_area")
-public class ShippingExtraArea {
+public class ShippingExtraArea extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "area_id")
-    private Long areaId;
+    @Column(name = "shipping_extra_area_id")
+    private Long shippingExtraAreaId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "area_type", nullable = false, length = 16)
     private ExtraAreaType areaType;
 
-    @Column(name = "postcode_from", nullable = false, length = 5)
-    private String postcodeFrom;
+    @Column(name = "area_name", nullable = false, length = 100)
+    private String areaName;
 
-    @Column(name = "postcode_to", nullable = false, length = 5)
-    private String postcodeTo;
+    @Column(name = "postal_code_from", nullable = false, length = 5)
+    private String postalCodeFrom;
 
-    @Column(name = "note", length = 100)
-    private String note;
+    @Column(name = "postal_code_to", nullable = false, length = 5)
+    private String postalCodeTo;
 
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    /** Area-specific fee; null means the policy fee for {@link #areaType}. */
+    @Column(name = "extra_fee")
+    private Long extraFee;
 
-    public boolean contains(String postcode) {
-        return postcode != null
-                && postcode.compareTo(postcodeFrom) >= 0
-                && postcode.compareTo(postcodeTo) <= 0;
+    @Column(name = "enabled", nullable = false)
+    private boolean enabled;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false, length = 20)
+    private ExtraAreaSource source;
+
+    public long effectiveFee(ShippingPolicy policy) {
+        return extraFee != null ? extraFee : policy.extraFeeFor(areaType);
     }
 
-    public Long getAreaId() {
-        return areaId;
-    }
-
-    public void setAreaId(Long areaId) {
-        this.areaId = areaId;
+    public Long getShippingExtraAreaId() {
+        return shippingExtraAreaId;
     }
 
     public ExtraAreaType getAreaType() {
@@ -58,35 +60,51 @@ public class ShippingExtraArea {
         this.areaType = areaType;
     }
 
-    public String getPostcodeFrom() {
-        return postcodeFrom;
+    public String getAreaName() {
+        return areaName;
     }
 
-    public void setPostcodeFrom(String postcodeFrom) {
-        this.postcodeFrom = postcodeFrom;
+    public void setAreaName(String areaName) {
+        this.areaName = areaName;
     }
 
-    public String getPostcodeTo() {
-        return postcodeTo;
+    public String getPostalCodeFrom() {
+        return postalCodeFrom;
     }
 
-    public void setPostcodeTo(String postcodeTo) {
-        this.postcodeTo = postcodeTo;
+    public void setPostalCodeFrom(String postalCodeFrom) {
+        this.postalCodeFrom = postalCodeFrom;
     }
 
-    public String getNote() {
-        return note;
+    public String getPostalCodeTo() {
+        return postalCodeTo;
     }
 
-    public void setNote(String note) {
-        this.note = note;
+    public void setPostalCodeTo(String postalCodeTo) {
+        this.postalCodeTo = postalCodeTo;
     }
 
-    public Instant getCreatedAt() {
-        return createdAt;
+    public Long getExtraFee() {
+        return extraFee;
     }
 
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
+    public void setExtraFee(Long extraFee) {
+        this.extraFee = extraFee;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public ExtraAreaSource getSource() {
+        return source;
+    }
+
+    public void setSource(ExtraAreaSource source) {
+        this.source = source;
     }
 }

@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/features/orders/status";
 import { RETURN_STATUS_LABELS } from "@/features/shipping/progress";
 import {
+  canAdvanceShipment,
   changeShipmentStatus,
   getAdminOrder,
+  isPickupRequested,
   issueWaybill,
   listDeliveryCompanies,
   MANUAL_SHIPMENT_TARGETS,
@@ -22,16 +24,6 @@ import {
   type DeliveryCompany,
   type ShipmentView,
 } from "@/features/admin/shipping";
-
-const SHIPMENT_RANK: Record<string, number> = {
-  PREPARING: 10,
-  READY: 20,
-  PICKUP_REQUESTED: 30,
-  PICKED_UP: 40,
-  IN_TRANSIT: 50,
-  OUT_FOR_DELIVERY: 60,
-  DELIVERED: 70,
-};
 
 const INVOICE_ORDER_STATUSES = new Set(["PAID", "PREPARING", "SHIPPED", "DELIVERED"]);
 
@@ -103,7 +95,6 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
   const enabledCompanies = companies.filter((c) => c.enabled);
   const selectedCompany = company || enabledCompanies[0]?.code || "";
   const canInvoice = INVOICE_ORDER_STATUSES.has(order.orderStatus);
-  const currentRank = delivery ? SHIPMENT_RANK[delivery.status] ?? 0 : 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -192,6 +183,9 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
               ) : null}
             </p>
           ) : null}
+          {delivery?.shippingProvider ? (
+            <p className="text-xs text-muted-foreground">연동 업체: {delivery.shippingProvider}</p>
+          ) : null}
           {delivery?.lastTrackingCheckedAt ? (
             <p className="text-xs text-muted-foreground">
               마지막 조회 {formatDateTime(delivery.lastTrackingCheckedAt)}
@@ -254,7 +248,7 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
                     key={target.value}
                     type="button"
                     className={smallButton}
-                    disabled={busy !== null || SHIPMENT_RANK[target.value] <= currentRank}
+                    disabled={busy !== null || !canAdvanceShipment(delivery.status, target.value)}
                     onClick={() => {
                       if (!window.confirm(`배송 상태를 '${target.label}'(으)로 변경할까요?`)) return;
                       void run(`status-${target.value}`, () => changeShipmentStatus(orderId, target.value));
@@ -271,7 +265,7 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
             <button
               type="button"
               className={smallButton}
-              disabled={busy !== null || !delivery || currentRank >= SHIPMENT_RANK.PICKUP_REQUESTED}
+              disabled={busy !== null || !canInvoice || isPickupRequested(delivery?.status)}
               onClick={() => void run("pickup", () => requestDeliveryPickup(orderId, selectedCompany))}
             >
               집하 요청
@@ -287,23 +281,29 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
             <button
               type="button"
               className={smallButton}
-              disabled={busy !== null}
-              onClick={() => void run("waybill", () => issueWaybill(orderId), "운송장이 발급되었습니다.")}
+              disabled={busy !== null || !canInvoice}
+              onClick={() => void run("waybill", () => issueWaybill(orderId, selectedCompany), "운송장이 발급되었습니다.")}
             >
               운송장 발급
             </button>
             <button
               type="button"
               className={smallButton}
-              disabled={busy !== null}
-              onClick={() => void run("print", () => printWaybill(orderId), "운송장 출력을 요청했습니다.")}
+              disabled={busy !== null || !delivery?.trackingNumber}
+              onClick={() =>
+                void run("print", async () => {
+                  const res = await printWaybill(orderId);
+                  if (res.printUrl) window.open(res.printUrl, "_blank", "noopener,noreferrer");
+                  return res;
+                }, "운송장 출력을 요청했습니다.")
+              }
             >
               운송장 출력
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            운송장 발급·출력과 자동 집하 요청은 택배사 계약 API(굿스플로 등) 연동 후 사용할 수 있습니다. 현재는 집하 요청을
-            수동으로 기록합니다.
+            운송장 발급·출력과 집하 요청은 배송 설정에서 해당 기능이 켜진 외부 API 업체로 처리되며, 켜진 업체가 없으면 집하
+            요청은 수동 기록으로 남습니다. 같은 버튼을 다시 눌러도 운송장이 두 번 발급되지 않습니다.
           </p>
 
           <EventTimeline shipment={delivery} />
@@ -324,8 +324,14 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
             <dt className="text-muted-foreground">사유</dt>
             <dd>
               {returnRequest.reasonLabel}
-              {returnRequest.memo ? ` · ${returnRequest.memo}` : ""}
+              {returnRequest.reasonText ? ` · ${returnRequest.reasonText}` : ""}
             </dd>
+            {returnRequest.customerMemo ? (
+              <>
+                <dt className="text-muted-foreground">수거 요청사항</dt>
+                <dd>{returnRequest.customerMemo}</dd>
+              </>
+            ) : null}
             <dt className="text-muted-foreground">수거지</dt>
             <dd>
               {returnRequest.pickupName} · {returnRequest.pickupPhone} · ({returnRequest.pickupPostcode}){" "}
@@ -338,6 +344,7 @@ export function AdminOrderDetailClient({ orderNo }: { orderNo: string }) {
                 <dt className="text-muted-foreground">회수 송장</dt>
                 <dd className="tabular-nums">
                   {returnRequest.pickupDeliveryCompanyName} {returnRequest.pickupTrackingNumber}
+                  {returnRequest.shipmentStatusName ? ` · ${returnRequest.shipmentStatusName}` : ""}
                 </dd>
               </>
             ) : null}

@@ -10,8 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ShippingFeeCalculatorTest {
 
-    private static final ShippingFeeCalculator.Policy POLICY = new ShippingFeeCalculator.Policy(
-            new BigDecimal("3000"), new BigDecimal("50000"), new BigDecimal("3000"), new BigDecimal("5000"));
+    private static final ShippingFeeCalculator.Policy POLICY = new ShippingFeeCalculator.Policy(3000, 50000, 3000, 5000);
 
     @Test
     void belowThresholdPaysBaseFee() {
@@ -53,9 +52,15 @@ class ShippingFeeCalculatorTest {
     }
 
     @Test
+    void areaSpecificFeeOverridesPolicyFee() {
+        ShippingQuote quote = ShippingFeeCalculator.quote(POLICY, new BigDecimal("10000"), ExtraAreaType.REMOTE, 7000L);
+        assertThat(quote.extraFee()).isEqualByComparingTo("7000");
+        assertThat(quote.deliveryFee()).isEqualByComparingTo("10000");
+    }
+
+    @Test
     void customPolicyValuesAreUsed() {
-        ShippingFeeCalculator.Policy custom = new ShippingFeeCalculator.Policy(
-                new BigDecimal("2500"), new BigDecimal("30000"), BigDecimal.ZERO, BigDecimal.ZERO);
+        ShippingFeeCalculator.Policy custom = new ShippingFeeCalculator.Policy(2500, 30000, 0, 0);
         assertThat(ShippingFeeCalculator.quote(custom, new BigDecimal("29000"), null).deliveryFee())
                 .isEqualByComparingTo("2500");
         assertThat(ShippingFeeCalculator.quote(custom, new BigDecimal("30000"), null).deliveryFee())

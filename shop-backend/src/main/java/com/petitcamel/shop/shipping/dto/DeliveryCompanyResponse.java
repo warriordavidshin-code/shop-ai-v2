@@ -2,7 +2,7 @@ package com.petitcamel.shop.shipping.dto;
 
 import java.util.Map;
 
-/** @param providerCodes provider name -> that provider's courier code */
+/** @param providerCodes vendor code -> that vendor's code for this courier */
 public record DeliveryCompanyResponse(
         String code,
         String companyName,

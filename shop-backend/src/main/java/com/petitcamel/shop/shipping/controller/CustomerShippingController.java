@@ -64,6 +64,14 @@ public class CustomerShippingController {
         return returnService.requestReturn(principal.getMemberId(), orderId, request);
     }
 
+    /** Customer withdraws the return while it is still 반품신청 / 반품승인. */
+    @PostMapping("/api/orders/{orderId}/return/cancel")
+    public ReturnRequestResponse cancelReturn(
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal MemberPrincipal principal) {
+        return returnService.cancelByCustomer(principal.getMemberId(), orderId);
+    }
+
     @GetMapping("/api/shipping/policy")
     public ShippingPolicyResponse policy() {
         return shippingFeeService.getPolicy();

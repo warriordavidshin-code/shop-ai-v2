@@ -8,9 +8,10 @@ import com.petitcamel.shop.shipping.dto.InvoiceRegisterRequest;
 import com.petitcamel.shop.shipping.dto.ReturnActionRequests;
 import com.petitcamel.shop.shipping.dto.ShipmentActionResponse;
 import com.petitcamel.shop.shipping.dto.ShipmentStatusChangeRequest;
+import com.petitcamel.shop.shipping.dto.WaybillResponse;
+import com.petitcamel.shop.shipping.service.ShipmentIntegrationService;
 import com.petitcamel.shop.shipping.service.ShipmentService;
 import com.petitcamel.shop.shipping.service.TrackingService;
-import com.petitcamel.shop.shipping.waybill.WaybillResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -27,10 +28,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminShipmentController {
 
     private final ShipmentService shipmentService;
+    private final ShipmentIntegrationService integrationService;
     private final TrackingService trackingService;
 
-    public AdminShipmentController(ShipmentService shipmentService, TrackingService trackingService) {
+    public AdminShipmentController(
+            ShipmentService shipmentService,
+            ShipmentIntegrationService integrationService,
+            TrackingService trackingService) {
         this.shipmentService = shipmentService;
+        this.integrationService = integrationService;
         this.trackingService = trackingService;
     }
 
@@ -57,7 +63,7 @@ public class AdminShipmentController {
             @PathVariable Long orderId,
             @Valid @RequestBody(required = false) ReturnActionRequests.Pickup request,
             @AuthenticationPrincipal MemberPrincipal principal) {
-        return shipmentService.requestPickup(orderId, request == null ? null : request.deliveryCompany(),
+        return integrationService.requestDeliveryPickup(orderId, request == null ? null : request.deliveryCompany(),
                 actorId(principal));
     }
 
@@ -68,16 +74,20 @@ public class AdminShipmentController {
         return trackingService.adminRefresh(orderId, type);
     }
 
-    /** 송장 발급 (requires a waybill integration such as Goodsflow). */
+    /** 송장 발급 through the waybill vendor. Repeating the call never issues a second waybill. */
     @PostMapping("/orders/{orderId}/shipment/waybill")
-    public WaybillResponse issueWaybill(@PathVariable Long orderId) {
-        return shipmentService.issueWaybill(orderId);
+    public ShipmentActionResponse issueWaybill(
+            @PathVariable Long orderId,
+            @Valid @RequestBody(required = false) ReturnActionRequests.Pickup request,
+            @AuthenticationPrincipal MemberPrincipal principal) {
+        return integrationService.issueWaybill(orderId, request == null ? null : request.deliveryCompany(),
+                actorId(principal));
     }
 
-    /** 송장 출력 (requires a waybill integration such as Goodsflow). */
+    /** 송장 출력 for a waybill issued through a vendor. */
     @PostMapping("/orders/{orderId}/shipment/waybill/print")
     public WaybillResponse printWaybill(@PathVariable Long orderId) {
-        return shipmentService.printWaybill(orderId);
+        return integrationService.printWaybill(orderId);
     }
 
     /** 송장 일괄 등록 (checkbox selection or CSV upload parsed by the admin UI). */

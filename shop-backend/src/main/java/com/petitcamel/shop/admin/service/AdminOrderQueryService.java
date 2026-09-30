@@ -14,13 +14,11 @@ import com.petitcamel.shop.order.repository.OrderEntityRepository;
 import com.petitcamel.shop.order.repository.OrderItemRepository;
 import com.petitcamel.shop.order.service.OrderCancelRequestService;
 import com.petitcamel.shop.order.service.OrderService;
-import com.petitcamel.shop.shipping.domain.DeliveryCompany;
 import com.petitcamel.shop.shipping.domain.ReturnRequest;
 import com.petitcamel.shop.shipping.domain.Shipment;
 import com.petitcamel.shop.shipping.domain.ShipmentType;
 import com.petitcamel.shop.shipping.repository.ReturnRequestRepository;
 import com.petitcamel.shop.shipping.repository.ShipmentRepository;
-import com.petitcamel.shop.shipping.service.DeliveryCompanyService;
 import com.petitcamel.shop.shipping.service.ShipmentViewAssembler;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -109,17 +107,18 @@ public class AdminOrderQueryService {
                 .collect(Collectors.toMap(Member::getMemberId, Function.identity()));
         Map<Long, Shipment> deliveries = orderIds.isEmpty() ? Map.of()
                 : shipmentRepository.findByOrderIdInAndShipmentType(orderIds, ShipmentType.DELIVERY).stream()
-                .collect(Collectors.toMap(Shipment::getOrderId, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(Shipment::getOrderId, Function.identity(),
+                        (a, b) -> a.getShipmentId() > b.getShipmentId() ? a : b));
         Map<Long, ReturnRequest> returns = orderIds.isEmpty() ? Map.of()
                 : returnRequestRepository.findByOrderIdIn(orderIds).stream()
                 .collect(Collectors.toMap(ReturnRequest::getOrderId, Function.identity(),
                         (a, b) -> a.getRequestedAt().isAfter(b.getRequestedAt()) ? a : b));
-        Map<String, DeliveryCompany> companies = assembler.companies();
+        ShipmentViewAssembler.Refs refs = assembler.refs();
 
         List<AdminOrderSummaryResponse> rows = content.stream()
                 .map(order -> toSummary(order, items.getOrDefault(order.getOrderId(), List.of()),
                         members.get(order.getMemberId()), deliveries.get(order.getOrderId()),
-                        returns.get(order.getOrderId()), companies))
+                        returns.get(order.getOrderId()), refs))
                 .toList();
         return PageResponse.of(rows, orders.getNumber(), orders.getSize(), orders.getTotalElements());
     }
@@ -129,10 +128,10 @@ public class AdminOrderQueryService {
         OrderEntity order = orderRepository.findByOrderNo(orderNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "주문을 찾을 수 없습니다."));
         Member member = memberRepository.findById(order.getMemberId()).orElse(null);
-        Map<String, DeliveryCompany> companies = assembler.companies();
-        Shipment delivery = shipmentRepository.findByOrderIdAndShipmentType(order.getOrderId(), ShipmentType.DELIVERY)
+        ShipmentViewAssembler.Refs refs = assembler.refs();
+        Shipment delivery = shipmentRepository.findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(order.getOrderId(), ShipmentType.DELIVERY)
                 .orElse(null);
-        Shipment returnShipment = shipmentRepository.findByOrderIdAndShipmentType(order.getOrderId(), ShipmentType.RETURN)
+        Shipment returnShipment = shipmentRepository.findFirstByOrderIdAndShipmentTypeOrderByShipmentIdDesc(order.getOrderId(), ShipmentType.RETURN)
                 .orElse(null);
         ReturnRequest returnRequest = returnRequestRepository.findFirstByOrderIdOrderByRequestedAtDesc(order.getOrderId())
                 .orElse(null);
@@ -140,9 +139,9 @@ public class AdminOrderQueryService {
                 orderService.getOrderForAdmin(orderNo),
                 member == null ? null : member.getLoginId(),
                 member == null ? null : member.getName(),
-                assembler.toView(delivery, true, companies),
-                assembler.toView(returnShipment, true, companies),
-                assembler.toReturnResponse(returnRequest, companies));
+                assembler.toView(delivery, true, refs),
+                assembler.toView(returnShipment, true, refs),
+                assembler.toReturnResponse(returnRequest, returnShipment, refs));
     }
 
     public Instant startOfToday() {
@@ -166,7 +165,7 @@ public class AdminOrderQueryService {
             Member member,
             Shipment delivery,
             ReturnRequest returnRequest,
-            Map<String, DeliveryCompany> companies) {
+            ShipmentViewAssembler.Refs refs) {
         String pickupStatus = null;
         if (delivery != null && delivery.getPickupRequestedAt() != null) {
             pickupStatus = delivery.getPickedUpAt() != null ? "집하완료" : "수거요청";
@@ -183,15 +182,15 @@ public class AdminOrderQueryService {
                 order.getPaymentAmount(),
                 order.getOrderedAt(),
                 items.size(),
-                delivery == null ? null : delivery.getShipmentStatus().name(),
-                delivery == null ? null : delivery.getShipmentStatus().getLabel(),
-                delivery == null ? null : delivery.getDeliveryCompany(),
-                delivery == null ? null : DeliveryCompanyService.companyName(companies, delivery.getDeliveryCompany()),
+                delivery == null ? null : delivery.getStatus().name(),
+                delivery == null ? null : delivery.getStatus().labelFor(ShipmentType.DELIVERY),
+                delivery == null ? null : refs.companyCode(delivery.getDeliveryCompanyId()),
+                delivery == null ? null : refs.companyName(delivery.getDeliveryCompanyId()),
                 delivery == null ? null : delivery.getTrackingNumber(),
                 delivery == null ? null
-                        : DeliveryCompanyService.trackingUrl(companies, delivery.getDeliveryCompany(), delivery.getTrackingNumber()),
+                        : refs.trackingUrl(delivery.getDeliveryCompanyId(), delivery.getTrackingNumber()),
                 pickupStatus,
-                returnRequest == null ? null : returnRequest.getReturnStatus().name(),
-                returnRequest == null ? null : returnRequest.getReturnStatus().getLabel());
+                returnRequest == null ? null : returnRequest.getStatus().name(),
+                returnRequest == null ? null : returnRequest.getStatus().getLabel());
     }
 }

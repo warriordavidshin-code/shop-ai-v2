@@ -1,16 +1,15 @@
 package com.petitcamel.shop.shipping.dto;
 
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
-import java.math.BigDecimal;
-
 public record ShippingPolicyUpdateRequest(
-        @NotNull @DecimalMin("0") @DecimalMax("1000000") BigDecimal baseShippingFee,
-        @NotNull @DecimalMin("0") @DecimalMax("100000000") BigDecimal freeShippingAmount,
-        @NotNull @DecimalMin("0") @DecimalMax("1000000") BigDecimal jejuExtraFee,
-        @NotNull @DecimalMin("0") @DecimalMax("1000000") BigDecimal remoteAreaExtraFee,
-        @NotNull @DecimalMin("0") @DecimalMax("1000000") BigDecimal returnShippingFee
+        @NotNull @Min(0) @Max(1_000_000) Long baseShippingFee,
+        @NotNull @Min(0) @Max(100_000_000) Long freeShippingAmount,
+        @NotNull @Min(0) @Max(1_000_000) Long jejuExtraFee,
+        @NotNull @Min(0) @Max(1_000_000) Long remoteAreaExtraFee,
+        @NotNull @Min(0) @Max(1_000_000) Long returnShippingFee,
+        @NotNull @Min(0) @Max(1_000_000) Long exchangeShippingFee
 ) {
 }

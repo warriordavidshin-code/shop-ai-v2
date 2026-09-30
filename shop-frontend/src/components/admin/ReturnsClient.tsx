@@ -23,10 +23,9 @@ import {
   type ReturnFilter,
 } from "@/features/admin/shipping";
 
-const STATUS_ORDER = ["REQUESTED", "APPROVED", "PICKUP_REQUESTED", "PICKED_UP", "IN_TRANSIT", "RECEIVED", "REFUNDED"];
+const STATUS_ORDER = ["REQUESTED", "APPROVED", "PICKUP_REQUESTED", "IN_PROGRESS", "RECEIVED", "COMPLETED"];
 const MANUAL_RETURN_TARGETS = [
-  { value: "PICKED_UP", label: "기사 방문수거" },
-  { value: "IN_TRANSIT", label: "반품배송중" },
+  { value: "IN_PROGRESS", label: "수거완료 · 반품배송중" },
   { value: "RECEIVED", label: "반품입고" },
 ] as const;
 
@@ -177,21 +176,25 @@ export function ReturnsClient({ initialFilter }: { initialFilter: ReturnFilter }
                     </p>
                     <p className="mt-2 rounded-lg bg-surface-soft px-3 py-2">
                       사유: {r.reasonLabel}
-                      {r.memo ? ` · ${r.memo}` : ""}
+                      {r.reasonText ? ` · ${r.reasonText}` : ""}
                     </p>
+                    {r.customerMemo ? (
+                      <p className="mt-1 text-muted-foreground">수거 요청사항: {r.customerMemo}</p>
+                    ) : null}
                     <p className="mt-1 text-muted-foreground">
                       수거지: {r.pickupName} · {r.pickupPhone} · ({r.pickupPostcode}) {r.pickupAddress1}{" "}
                       {r.pickupAddress2 ?? ""}
                     </p>
                     <p className="mt-1 text-muted-foreground">
                       반품 배송비 {r.freeReturn ? "무료(판매자 부담)" : `${formatKrw(r.returnShippingFee)}원`} ·{" "}
-                      {r.status === "REFUNDED" ? "환불" : "예상 환불"}{" "}
+                      {r.status === "COMPLETED" ? "환불" : "예상 환불"}{" "}
                       <span className="font-medium text-foreground tabular-nums">{formatKrw(expectedRefund)}원</span>
-                      {r.status === "REFUNDED" && r.restocked ? " · 재입고 완료" : ""}
+                      {r.status === "COMPLETED" && r.restocked ? " · 재입고 완료" : ""}
                     </p>
                     {r.pickupTrackingNumber ? (
                       <p className="mt-1 text-muted-foreground">
                         회수 송장: {r.pickupDeliveryCompanyName} <span className="tabular-nums">{r.pickupTrackingNumber}</span>
+                        {r.shipmentStatusName ? ` · ${r.shipmentStatusName}` : ""}
                         {r.pickupTrackingUrl ? (
                           <a
                             href={r.pickupTrackingUrl}
@@ -226,7 +229,7 @@ export function ReturnsClient({ initialFilter }: { initialFilter: ReturnFilter }
                         반품수거 요청
                       </button>
                     ) : null}
-                    {r.status === "PICKUP_REQUESTED" || r.status === "PICKED_UP" || r.status === "IN_TRANSIT" ? (
+                    {r.status === "PICKUP_REQUESTED" || r.status === "IN_PROGRESS" ? (
                       <button type="button" className={buttonClass} disabled={busy} onClick={() => openPanel(id, "tracking")}>
                         회수 송장 {r.pickupTrackingNumber ? "수정" : "등록"}
                       </button>
@@ -317,11 +320,12 @@ export function ReturnsClient({ initialFilter }: { initialFilter: ReturnFilter }
                             )
                           }
                         >
-                          {panel.kind === "pickup" ? "수거 요청 기록" : "송장 저장"}
+                          {panel.kind === "pickup" ? "수거 요청" : "송장 저장"}
                         </button>
                         {panel.kind === "pickup" ? (
                           <p className="w-full text-xs text-muted-foreground">
-                            택배사 반품 회수 API 연동 전에는 택배사에 직접 회수를 접수한 뒤 이 화면에 기록합니다.
+                            반품수거 API 업체가 켜져 있으면 업체에 자동 접수됩니다(중복 접수되지 않음). 꺼져 있으면 택배사에 직접
+                            접수한 뒤 송장번호를 기록합니다.
                           </p>
                         ) : null}
                       </>

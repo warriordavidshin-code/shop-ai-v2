@@ -21,12 +21,15 @@ export const shipmentViewSchema = z.object({
   deliveryCompanyName: nullableString,
   trackingNumber: nullableString,
   trackingUrl: nullableString,
+  shippingProvider: nullableString,
   pickupRequestedAt: nullableString,
   pickedUpAt: nullableString,
   shippedAt: nullableString,
+  outForDeliveryAt: nullableString,
   deliveredAt: nullableString,
   lastTrackingCheckedAt: nullableString,
   lastTrackingError: nullableString,
+  lastStatusChangedAt: nullableString,
   events: z.array(trackingEventSchema).nullable().optional(),
 });
 
@@ -131,9 +134,14 @@ export type AdminReturn = z.infer<typeof adminReturnSchema>;
 export const extraAreaSchema = z.object({
   areaId: z.number(),
   areaType: z.enum(["JEJU", "REMOTE"]),
-  postcodeFrom: z.string(),
-  postcodeTo: z.string(),
-  note: nullableString,
+  areaName: z.string(),
+  postalCodeFrom: z.string(),
+  postalCodeTo: z.string(),
+  /** Area-specific surcharge; null uses the policy fee for the area type. */
+  extraFee: z.number().nullable().optional(),
+  effectiveFee: z.number(),
+  enabled: z.boolean(),
+  source: z.string(),
 });
 
 export type ExtraArea = z.infer<typeof extraAreaSchema>;
@@ -143,14 +151,102 @@ export const integrationSchema = z.object({
   activeProvider: z.string(),
   externalTracking: z.boolean(),
   apiKeyConfigured: z.boolean(),
-  pickupService: z.string(),
+  pickupService: nullableString,
   waybillSupported: z.boolean(),
+  waybillProvider: nullableString,
+  returnPickupProvider: nullableString,
   schedulerEnabled: z.boolean(),
   schedulerCron: z.string(),
   cacheMinutes: z.number(),
 });
 
 export type ShippingIntegration = z.infer<typeof integrationSchema>;
+
+export const PROVIDER_CAPABILITIES = [
+  { key: "trackingEnabled", capability: "TRACKING", label: "배송조회" },
+  { key: "waybillEnabled", capability: "WAYBILL", label: "송장발급" },
+  { key: "pickupEnabled", capability: "PICKUP", label: "집하요청" },
+  { key: "returnPickupEnabled", capability: "RETURN_PICKUP", label: "반품수거" },
+] as const;
+
+export const shippingProviderSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+  trackingEnabled: z.boolean(),
+  waybillEnabled: z.boolean(),
+  pickupEnabled: z.boolean(),
+  returnPickupEnabled: z.boolean(),
+  configured: z.boolean(),
+  preferred: z.boolean(),
+  supportedCapabilities: z.array(z.string()).default([]),
+  activeCapabilities: z.array(z.string()).default([]),
+});
+
+export type ShippingProviderRow = z.infer<typeof shippingProviderSchema>;
+
+export type ShippingProviderPatch = Partial<
+  Pick<ShippingProviderRow, "enabled" | "trackingEnabled" | "waybillEnabled" | "pickupEnabled" | "returnPickupEnabled">
+>;
+
+export const connectionTestSchema = z.object({
+  providerCode: z.string(),
+  success: z.boolean(),
+  message: z.string(),
+});
+
+export const shippingOperationSchema = z.object({
+  operationId: z.number(),
+  providerCode: z.string(),
+  operationType: z.string(),
+  orderId: z.number().nullable().optional(),
+  shipmentId: z.number().nullable().optional(),
+  returnRequestId: z.number().nullable().optional(),
+  idempotencyKey: nullableString,
+  requestId: z.string(),
+  externalReference: nullableString,
+  status: z.string(),
+  httpStatus: z.number().nullable().optional(),
+  errorCode: nullableString,
+  errorMessage: nullableString,
+  attemptCount: z.number(),
+  requestedAt: nullableString,
+  completedAt: nullableString,
+  appliedAt: nullableString,
+  needsAttention: z.boolean(),
+});
+
+export type ShippingOperation = z.infer<typeof shippingOperationSchema>;
+
+export const OPERATION_TYPE_LABELS: Record<string, string> = {
+  TRACKING: "배송조회",
+  WAYBILL_ISSUE: "송장발급",
+  WAYBILL_CANCEL: "송장취소",
+  PICKUP_REQUEST: "집하요청",
+  RETURN_PICKUP: "반품수거",
+  CONNECTION_TEST: "연결 테스트",
+};
+
+export const OPERATION_STATUS_LABELS: Record<string, string> = {
+  PENDING: "처리중",
+  SUCCEEDED: "성공",
+  FAILED: "실패",
+  UNKNOWN: "결과 확인 필요",
+};
+
+export const OPERATION_FILTERS = [
+  { value: "ATTENTION", label: "확인 필요" },
+  { value: "FAILED", label: "실패" },
+  { value: "SUCCEEDED", label: "성공" },
+  { value: "ALL", label: "전체" },
+] as const;
+
+export type OperationFilter = (typeof OPERATION_FILTERS)[number]["value"];
+
+/** An UNKNOWN or stuck call may be retried only after the admin checked the vendor side. */
+export function canAllowRetry(op: Pick<ShippingOperation, "status" | "needsAttention">): boolean {
+  return op.status === "UNKNOWN" || (op.status === "PENDING" && op.needsAttention);
+}
 
 /** Order list tabs; `view` values match AdminOrderQueryService.View. */
 export const ORDER_VIEWS = [
@@ -171,12 +267,37 @@ export function toOrderView(value: string | null | undefined): OrderView {
 
 /** Manual delivery status targets offered on the order detail page (forward-only on the server). */
 export const MANUAL_SHIPMENT_TARGETS = [
-  { value: "READY", label: "배송준비" },
   { value: "PICKED_UP", label: "집하완료" },
   { value: "IN_TRANSIT", label: "배송중" },
   { value: "OUT_FOR_DELIVERY", label: "배송출발" },
   { value: "DELIVERED", label: "배송완료" },
+  { value: "FAILED", label: "배송실패" },
 ] as const;
+
+const SHIPMENT_RANK: Record<string, number> = {
+  READY: 10,
+  WAYBILL_ISSUED: 20,
+  PICKUP_REQUESTED: 30,
+  PICKED_UP: 40,
+  IN_TRANSIT: 50,
+  OUT_FOR_DELIVERY: 60,
+  DELIVERED: 70,
+};
+
+const FINAL_SHIPMENT_STATUSES = new Set(["DELIVERED", "CANCELLED", "FAILED"]);
+
+/** Mirrors ShipmentStatus.canAdvanceTo on the server: forward only, FAILED from any unsettled status. */
+export function canAdvanceShipment(current: string | null | undefined, target: string): boolean {
+  const from = current ?? "READY";
+  if (from === target || FINAL_SHIPMENT_STATUSES.has(from)) return false;
+  if (target === "FAILED") return true;
+  if (target === "CANCELLED") return (SHIPMENT_RANK[from] ?? 0) < SHIPMENT_RANK.PICKED_UP;
+  return (SHIPMENT_RANK[target] ?? 0) > (SHIPMENT_RANK[from] ?? 0);
+}
+
+export function isPickupRequested(status: string | null | undefined): boolean {
+  return !!status && (FINAL_SHIPMENT_STATUSES.has(status) || (SHIPMENT_RANK[status] ?? 0) >= SHIPMENT_RANK.PICKUP_REQUESTED);
+}
 
 /** Adapts an admin ShipmentView to the customer tracking shape so TrackingModal can render it. */
 export function shipmentToTracking(
@@ -247,12 +368,23 @@ export function refreshTracking(orderId: number, type: "DELIVERY" | "RETURN" = "
   return send(shipmentActionSchema, `/admin/orders/${orderId}/shipment/refresh?type=${type}`, json("POST"));
 }
 
-export function issueWaybill(orderId: number) {
-  return send(z.unknown(), `/admin/orders/${orderId}/shipment/waybill`, json("POST"));
+const waybillSchema = z.object({
+  trackingNumber: nullableString,
+  printUrl: nullableString,
+  message: nullableString,
+});
+
+/** Safe to repeat: the server never issues a second waybill for the same order. */
+export function issueWaybill(orderId: number, deliveryCompany?: string) {
+  return send(
+    shipmentActionSchema,
+    `/admin/orders/${orderId}/shipment/waybill`,
+    json("POST", { deliveryCompany: deliveryCompany || null }),
+  );
 }
 
 export function printWaybill(orderId: number) {
-  return send(z.unknown(), `/admin/orders/${orderId}/shipment/waybill/print`, json("POST"));
+  return send(waybillSchema, `/admin/orders/${orderId}/shipment/waybill/print`, json("POST"));
 }
 
 export function bulkRegisterInvoices(items: InvoiceRow[]) {
@@ -266,9 +398,11 @@ export const RETURN_FILTERS = [
   { value: "REQUESTED", label: "반품신청" },
   { value: "APPROVED", label: "반품승인" },
   { value: "PICKUP_REQUESTED", label: "수거요청" },
+  { value: "IN_PROGRESS", label: "반품배송중" },
   { value: "RECEIVED", label: "반품입고" },
-  { value: "REFUNDED", label: "환불완료" },
+  { value: "COMPLETED", label: "반품완료" },
   { value: "REJECTED", label: "거절" },
+  { value: "CANCELLED", label: "철회" },
   { value: "ALL", label: "전체" },
 ] as const;
 
@@ -303,7 +437,7 @@ export function registerReturnTracking(id: number, deliveryCompany: string, trac
   return send(adminReturnSchema, `/admin/returns/${id}/tracking`, json("PUT", { deliveryCompany, trackingNumber }));
 }
 
-export function changeReturnStatus(id: number, status: "PICKED_UP" | "IN_TRANSIT" | "RECEIVED") {
+export function changeReturnStatus(id: number, status: "IN_PROGRESS" | "RECEIVED") {
   return send(adminReturnSchema, `/admin/returns/${id}/status`, json("PATCH", { status }));
 }
 
@@ -331,6 +465,7 @@ export type ShippingPolicyInput = {
   jejuExtraFee: number;
   remoteAreaExtraFee: number;
   returnShippingFee: number;
+  exchangeShippingFee: number;
 };
 
 export function updateShippingPolicy(input: ShippingPolicyInput) {
@@ -341,8 +476,20 @@ export function listExtraAreas() {
   return send(z.array(extraAreaSchema), "/admin/shipping/extra-areas");
 }
 
-export function addExtraArea(input: { areaType: "JEJU" | "REMOTE"; postcodeFrom: string; postcodeTo: string; note?: string }) {
+export type ExtraAreaInput = {
+  areaType: "JEJU" | "REMOTE";
+  areaName: string;
+  postalCodeFrom: string;
+  postalCodeTo: string;
+  extraFee?: number | null;
+};
+
+export function addExtraArea(input: ExtraAreaInput) {
   return send(extraAreaSchema, "/admin/shipping/extra-areas", json("POST", input));
+}
+
+export function setExtraAreaEnabled(areaId: number, enabled: boolean) {
+  return send(extraAreaSchema, `/admin/shipping/extra-areas/${areaId}`, json("PATCH", { enabled }));
 }
 
 export async function deleteExtraArea(areaId: number) {
@@ -352,4 +499,34 @@ export async function deleteExtraArea(areaId: number) {
 
 export function getShippingIntegration() {
   return send(integrationSchema, "/admin/shipping/integration");
+}
+
+/** Blank `externalCompanyCode` removes the mapping. */
+export function updateProviderCode(companyCode: string, providerCode: string, externalCompanyCode: string) {
+  return send(
+    deliveryCompanySchema,
+    `/admin/shipping/delivery-companies/${encodeURIComponent(companyCode)}/provider-codes/${encodeURIComponent(providerCode)}`,
+    json("PUT", { externalCompanyCode }),
+  );
+}
+
+export function listShippingProviders() {
+  return send(z.array(shippingProviderSchema), "/admin/shipping/providers");
+}
+
+export function updateShippingProvider(code: string, patch: ShippingProviderPatch) {
+  return send(shippingProviderSchema, `/admin/shipping/providers/${encodeURIComponent(code)}`, json("PATCH", patch));
+}
+
+export function testShippingProvider(code: string) {
+  return send(connectionTestSchema, `/admin/shipping/providers/${encodeURIComponent(code)}/test`, json("POST"));
+}
+
+export function listShippingOperations(status: OperationFilter, page = 0, size = 20) {
+  const query = new URLSearchParams({ page: String(page), size: String(size), status });
+  return send(pageOf(shippingOperationSchema), `/admin/shipping/operations?${query.toString()}`);
+}
+
+export function allowOperationRetry(operationId: number) {
+  return send(shippingOperationSchema, `/admin/shipping/operations/${operationId}/allow-retry`, json("POST"));
 }

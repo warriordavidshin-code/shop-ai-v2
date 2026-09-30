@@ -6,6 +6,7 @@ import com.petitcamel.shop.shipping.dto.AdminReturnResponse;
 import com.petitcamel.shop.shipping.dto.InvoiceRegisterRequest;
 import com.petitcamel.shop.shipping.dto.ReturnActionRequests;
 import com.petitcamel.shop.shipping.service.ReturnService;
+import com.petitcamel.shop.shipping.service.ShipmentIntegrationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminReturnController {
 
     private final ReturnService returnService;
+    private final ShipmentIntegrationService integrationService;
 
-    public AdminReturnController(ReturnService returnService) {
+    public AdminReturnController(ReturnService returnService, ShipmentIntegrationService integrationService) {
         this.returnService = returnService;
+        this.integrationService = integrationService;
     }
 
     /** @param status ALL, OPEN or a ReturnStatus name */
@@ -63,7 +66,7 @@ public class AdminReturnController {
             @PathVariable Long returnRequestId,
             @Valid @RequestBody(required = false) ReturnActionRequests.Pickup request,
             @AuthenticationPrincipal MemberPrincipal principal) {
-        return returnService.requestPickup(returnRequestId,
+        return integrationService.requestReturnPickup(returnRequestId,
                 request == null ? null : request.deliveryCompany(),
                 request == null ? null : request.trackingNumber(),
                 actorId(principal));

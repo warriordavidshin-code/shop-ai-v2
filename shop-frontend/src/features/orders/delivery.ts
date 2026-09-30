@@ -7,6 +7,7 @@ export type ShippingPolicy = {
   jejuExtraFee: number;
   remoteAreaExtraFee: number;
   returnShippingFee: number;
+  exchangeShippingFee: number;
 };
 
 /** Seed values of the shipping_policy table; used until the live policy loads. */
@@ -16,6 +17,7 @@ export const DEFAULT_SHIPPING_POLICY: ShippingPolicy = {
   jejuExtraFee: 3000,
   remoteAreaExtraFee: 5000,
   returnShippingFee: 3000,
+  exchangeShippingFee: 6000,
 };
 
 export const DELIVERY_FEE = DEFAULT_SHIPPING_POLICY.baseShippingFee;

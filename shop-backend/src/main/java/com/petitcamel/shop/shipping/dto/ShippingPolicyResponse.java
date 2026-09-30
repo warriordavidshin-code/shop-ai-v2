@@ -1,14 +1,17 @@
 package com.petitcamel.shop.shipping.dto;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 
+/** Fees in whole won. {@code freeShippingAmount} is the free-shipping threshold. */
 public record ShippingPolicyResponse(
-        BigDecimal baseShippingFee,
-        BigDecimal freeShippingAmount,
-        BigDecimal jejuExtraFee,
-        BigDecimal remoteAreaExtraFee,
-        BigDecimal returnShippingFee,
+        Long policyId,
+        String name,
+        long baseShippingFee,
+        long freeShippingAmount,
+        long jejuExtraFee,
+        long remoteAreaExtraFee,
+        long returnShippingFee,
+        long exchangeShippingFee,
         Instant updatedAt
 ) {
 }

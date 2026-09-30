@@ -18,12 +18,39 @@ public record ShipmentStatusChangedEvent(
         Instant changedAt
 ) {
 
-    /** First transition into a picked-up/in-transit state, i.e. the parcel left the shop. */
+    public static final String DELIVERY_DISPATCHED = "DELIVERY_DISPATCHED";
+    public static final String DELIVERY_OUT_FOR_DELIVERY = "DELIVERY_OUT_FOR_DELIVERY";
+    public static final String DELIVERY_DELIVERED = "DELIVERY_DELIVERED";
+    public static final String RETURN_PICKUP_REQUESTED = "RETURN_PICKUP_REQUESTED";
+    public static final String RETURN_RECEIVED = "RETURN_RECEIVED";
+
+    /** First transition into a moving state of a delivery, i.e. the parcel left the shop. */
     public boolean isDispatch() {
         return shipmentType == ShipmentType.DELIVERY
-                && (from == null || from.getRank() < ShipmentStatus.PICKED_UP.getRank())
-                && to.getRank() >= ShipmentStatus.PICKED_UP.getRank()
-                && to != ShipmentStatus.DELIVERED
-                && to.belongsTo(ShipmentType.DELIVERY);
+                && (from == null || !from.isMoving())
+                && to.isMoving()
+                && to != ShipmentStatus.DELIVERED;
+    }
+
+    /** Customer-facing notification this change triggers, or null. */
+    public String notificationType() {
+        if (shipmentType == ShipmentType.DELIVERY) {
+            if (isDispatch()) {
+                return DELIVERY_DISPATCHED;
+            }
+            return switch (to) {
+                case OUT_FOR_DELIVERY -> DELIVERY_OUT_FOR_DELIVERY;
+                case DELIVERED -> DELIVERY_DELIVERED;
+                default -> null;
+            };
+        }
+        if (shipmentType == ShipmentType.RETURN) {
+            return switch (to) {
+                case PICKUP_REQUESTED -> RETURN_PICKUP_REQUESTED;
+                case DELIVERED -> RETURN_RECEIVED;
+                default -> null;
+            };
+        }
+        return null;
     }
 }
