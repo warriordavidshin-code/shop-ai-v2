@@ -49,6 +49,15 @@ export default async function AdminEditProductPage({ params }: { params: Params 
             normalPrice: Number(data.normalPrice ?? 0),
             salePrice: Number(data.salePrice ?? 0),
             status: data.status ?? "ON_SALE",
+            fitType: data.fitType ?? null,
+            material: data.material ?? null,
+            thickness: data.thickness ?? null,
+            stretch: data.stretch ?? null,
+            seeThrough: data.seeThrough ?? null,
+            season: data.season ?? null,
+            searchKeywords: data.searchKeywords ?? null,
+            seoDescription: data.seoDescription ?? null,
+            purchasePrice: data.purchasePrice === null || data.purchasePrice === undefined ? null : Number(data.purchasePrice),
             images: Array.isArray(data.images)
               ? data.images.map(
                   (

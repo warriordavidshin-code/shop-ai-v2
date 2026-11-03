@@ -89,11 +89,12 @@ public class AdminAiOperationsController {
         LocalDate from = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(span - 1L);
         Instant since = from.atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
         var usage = historyRepository.usageSince(since);
-        long failures = historyRepository.countByCreatedAtAfterAndStatus(since, AiAnalysisStatus.FAILED);
+        long failures = historyRepository.countByCreatedAtAfterAndStatusAndProvider(since, AiAnalysisStatus.FAILED,
+                com.petitcamel.shop.ai.domain.AiProviderType.OPENAI);
         return new Usage(from, num(usage.getCalls()), failures, num(usage.getInputTokens()),
                 num(usage.getOutputTokens()), usage.getEstimatedCostUsd() == null ? BigDecimal.ZERO
                 : new BigDecimal(usage.getEstimatedCostUsd().toString()),
-                "비용은 설정된 100만 토큰당 단가로 추정한 값이며 실제 청구액과 다를 수 있습니다. Mock 호출은 비용 0입니다.");
+                "사용량은 실제 OpenAI 호출만 집계합니다(Mock·규칙 기반 호출 제외). 비용은 설정된 100만 토큰당 단가로 추정한 값이며 실제 청구액과 다를 수 있습니다.");
     }
 
     @PostMapping("/purchase-recommendations")

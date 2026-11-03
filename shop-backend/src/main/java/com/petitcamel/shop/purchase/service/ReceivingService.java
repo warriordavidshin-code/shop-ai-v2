@@ -435,7 +435,7 @@ public class ReceivingService {
     }
 
     private String newReceiptNo() {
-        String date = clock.instant().atZone(ZoneId.of("Asia/Seoul")).format(DateTimeFormatter.BASIC_ISO_DATE);
+        String date = clock.instant().atZone(ZoneId.of("Asia/Seoul")).toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE);
         String alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         for (int attempt = 0; attempt < 5; attempt++) {
             StringBuilder suffix = new StringBuilder();

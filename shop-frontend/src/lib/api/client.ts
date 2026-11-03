@@ -20,7 +20,7 @@ function getCsrfToken(): string | undefined {
 
 export async function shopFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  if (!headers.has("Content-Type") && init.body) {
+  if (!headers.has("Content-Type") && init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
   const csrf = getCsrfToken();

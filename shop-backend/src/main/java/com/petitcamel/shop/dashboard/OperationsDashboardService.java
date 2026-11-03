@@ -122,8 +122,9 @@ public class OperationsDashboardService {
                 now.orderCount());
 
         var usage = aiHistoryRepository.usageSince(monthStart.atStartOfDay(ZONE).toInstant());
-        long failures = aiHistoryRepository.countByCreatedAtAfterAndStatus(monthStart.atStartOfDay(ZONE).toInstant(),
-                AiAnalysisStatus.FAILED);
+        long failures = aiHistoryRepository.countByCreatedAtAfterAndStatusAndProvider(
+                monthStart.atStartOfDay(ZONE).toInstant(), AiAnalysisStatus.FAILED,
+                com.petitcamel.shop.ai.domain.AiProviderType.OPENAI);
         AiCard ai = new AiCard(num(usage == null ? null : usage.getCalls()), failures,
                 num(usage == null ? null : usage.getInputTokens()), num(usage == null ? null : usage.getOutputTokens()),
                 usage == null || usage.getEstimatedCostUsd() == null ? BigDecimal.ZERO

@@ -147,6 +147,7 @@ class PurchaseInventoryFlowIT {
 
         ReceivingDtos.ReceiptResponse receipt = receivingService.create(new ReceivingDtos.CreateReceiptRequest(
                 first.ledger().id(), null, null, null, null, null, null, null, null), adminId);
+        assertThat(receipt.receiptNo()).matches("RC\\d{8}-[A-Z2-9]{5}");
         assertThat(receipt.items()).hasSize(1);
         assertThat(receipt.items().get(0).expectedQuantity()).isEqualTo(10);
         assertThat(stock()).isZero();

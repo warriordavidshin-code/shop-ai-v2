@@ -56,6 +56,17 @@
       AI_PROVIDER: ${AI_PROVIDER:-rule}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      AI_RECEIPT_ENABLED: ${AI_RECEIPT_ENABLED:-true}
+      AI_PRODUCT_ENABLED: ${AI_PRODUCT_ENABLED:-true}
+      AI_MOCK_ENABLED: ${AI_MOCK_ENABLED:-false}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-90}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+      AI_CACHE_DAYS: ${AI_CACHE_DAYS:-30}
+      AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0.40}
+      AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-1.60}
+      MULTIPART_MAX_FILE_SIZE: ${MULTIPART_MAX_FILE_SIZE:-10MB}
+      MULTIPART_MAX_REQUEST_SIZE: ${MULTIPART_MAX_REQUEST_SIZE:-60MB}
       SHIPPING_PROVIDER: ${SHIPPING_PROVIDER:-SWEETTRACKER}
       SHIPPING_API_KEY: ${SHIPPING_API_KEY:-}
       SHIPPING_CLIENT_ID: ${SHIPPING_CLIENT_ID:-}
@@ -63,12 +74,15 @@
       SHIPPING_TRACKING_SCHEDULER_ENABLED: ${SHIPPING_TRACKING_SCHEDULER_ENABLED:-true}
       SHIPPING_TRACKING_CRON: ${SHIPPING_TRACKING_CRON:-0 */30 * * * *}
       UPLOAD_DIR: /app/uploads
+      # Purchase evidence (receipts, statements). Never served from /uploads.
+      PRIVATE_UPLOAD_DIR: /app/private-uploads
       LOG_DIR: /app/logs
       TZ: Asia/Seoul
     ports:
       - "${BACKEND_BIND_ADDRESS:-0.0.0.0}:${BACKEND_HOST_PORT:-8080}:8080"
     volumes:
       - shop_ai_uploads:/app/uploads
+      - shop_ai_private_uploads:/app/private-uploads
       - shop_ai_backend_logs:/app/logs
     depends_on:
       postgres:
@@ -130,4 +144,5 @@ networks:
 volumes:
   shop_ai_pgdata:
   shop_ai_uploads:
+  shop_ai_private_uploads:
   shop_ai_backend_logs:

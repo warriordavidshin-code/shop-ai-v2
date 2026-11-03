@@ -35,7 +35,8 @@ public interface AiAnalysisHistoryRepository extends JpaRepository<AiAnalysisHis
         Number getEstimatedCostUsd();
     }
 
-    long countByCreatedAtAfterAndStatus(Instant after, AiAnalysisStatus status);
+    long countByCreatedAtAfterAndStatusAndProvider(Instant after, AiAnalysisStatus status,
+            com.petitcamel.shop.ai.domain.AiProviderType provider);
 
     org.springframework.data.domain.Page<AiAnalysisHistory> findAllByOrderByCreatedAtDescIdDesc(
             org.springframework.data.domain.Pageable pageable);

@@ -37,6 +37,9 @@ export function Footer() {
           <Link href="/products">상품</Link>
           <Link href="/style">AI 스타일리스트</Link>
           {showMypage ? <Link href="/mypage">마이페이지</Link> : null}
+          <a href="/manuals/user" target="_blank" rel="noopener">
+            이용 안내
+          </a>
         </div>
         <p className="text-xs">© {new Date().getFullYear()} Boutique Camel</p>
       </Container>

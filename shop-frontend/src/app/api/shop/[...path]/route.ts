@@ -110,6 +110,18 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
   if (responseContentType) {
     responseHeaders.set("content-type", responseContentType);
   }
+  for (const name of [
+    "content-disposition",
+    "cache-control",
+    "x-content-type-options",
+    "content-security-policy",
+    "x-export-rows",
+  ]) {
+    const value = backendResponse.headers.get(name);
+    if (value) {
+      responseHeaders.set(name, value);
+    }
+  }
 
   const emptyBody =
     backendResponse.status === 204 ||

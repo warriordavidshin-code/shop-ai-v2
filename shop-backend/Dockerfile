@@ -18,7 +18,7 @@ WORKDIR /app
 RUN apk add --no-cache curl \
     && addgroup -S spring \
     && adduser -S spring -G spring \
-    && mkdir -p /app/uploads /app/logs \
+    && mkdir -p /app/uploads /app/private-uploads /app/logs \
     && chown -R spring:spring /app
 
 COPY --from=build --chown=spring:spring /app/target/*.jar app.jar

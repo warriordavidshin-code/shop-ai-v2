@@ -283,7 +283,7 @@ public class ProfitAnalyticsService {
         List<String> notes = new ArrayList<>();
         notes.add("매출 인식: 결제 승인일 기준. 취소·반품은 원 판매 기간에서 차감합니다.");
         notes.add("결제수수료 " + percent(policy.getPaymentFeeRate()) + ", 주문당 배송원가 "
-                + (policy.getShippingCostPerOrder() == null ? 0 : policy.getShippingCostPerOrder())
+                + String.format(java.util.Locale.ROOT, "%,d", policy.getShippingCostPerOrder() == null ? 0L : policy.getShippingCostPerOrder().longValue())
                 + "원은 정책 설정값이며 주문 단위로 한 번만 반영됩니다.");
         if (computation.total.estimatedQty > 0) {
             notes.add("원가 스냅샷이 없는 기존 주문 " + computation.total.estimatedQty + "개는 현재 원가로 추정했습니다.");
