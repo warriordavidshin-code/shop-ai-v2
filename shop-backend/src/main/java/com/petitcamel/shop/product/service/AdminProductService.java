@@ -18,6 +18,7 @@ import com.petitcamel.shop.product.dto.ProductStatusUpdateRequest;
 import com.petitcamel.shop.product.repository.ProductImageRepository;
 import com.petitcamel.shop.product.repository.ProductRepository;
 import com.petitcamel.shop.product.repository.ProductSkuRepository;
+import com.petitcamel.shop.pricing.service.ProductPriceHistoryService;
 import com.petitcamel.shop.product.util.ProductPricing;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +44,7 @@ public class AdminProductService {
     private final ProductImageRepository productImageRepository;
     private final InventoryRepository inventoryRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductPriceHistoryService priceHistoryService;
     private final Clock clock;
 
     public AdminProductService(
@@ -51,12 +53,14 @@ public class AdminProductService {
             ProductImageRepository productImageRepository,
             InventoryRepository inventoryRepository,
             CategoryRepository categoryRepository,
+            ProductPriceHistoryService priceHistoryService,
             Clock clock) {
         this.productRepository = productRepository;
         this.productSkuRepository = productSkuRepository;
         this.productImageRepository = productImageRepository;
         this.inventoryRepository = inventoryRepository;
         this.categoryRepository = categoryRepository;
+        this.priceHistoryService = priceHistoryService;
         this.clock = clock;
     }
 
@@ -77,8 +81,12 @@ public class AdminProductService {
         return toAdminResponse(requireProduct(productId));
     }
 
-    @Transactional
     public AdminProductResponse createProduct(AdminProductRequest request) {
+        return createProduct(request, null);
+    }
+
+    @Transactional
+    public AdminProductResponse createProduct(AdminProductRequest request, Long actorId) {
         requireCategory(request.categoryId());
         Instant now = clock.instant();
 
@@ -88,17 +96,24 @@ public class AdminProductService {
         product.setCreatedAt(now);
         product.setUpdatedAt(now);
         Product saved = productRepository.save(product);
+        priceHistoryService.recordIfChanged(saved, null, null, "상품 등록", actorId);
 
         upsertSkus(saved.getProductId(), request.skus(), now, true);
         replaceImages(saved.getProductId(), request.images(), now);
         return toAdminResponse(saved);
     }
 
-    @Transactional
     public AdminProductResponse updateProduct(Long productId, AdminProductRequest request) {
+        return updateProduct(productId, request, null);
+    }
+
+    @Transactional
+    public AdminProductResponse updateProduct(Long productId, AdminProductRequest request, Long actorId) {
         Product product = requireProduct(productId);
         requireCategory(request.categoryId());
         Instant now = clock.instant();
+        BigDecimal previousNormal = product.getNormalPrice();
+        BigDecimal previousSale = product.getSalePrice();
 
         applyProductFields(product, request);
         if (request.status() != null) {
@@ -106,6 +121,7 @@ public class AdminProductService {
         }
         product.setUpdatedAt(now);
         Product saved = productRepository.save(product);
+        priceHistoryService.recordIfChanged(saved, previousNormal, previousSale, "상품 수정", actorId);
 
         if (request.skus() != null) {
             upsertSkus(saved.getProductId(), request.skus(), now, false);
@@ -266,6 +282,13 @@ public class AdminProductService {
         product.setStretch(request.stretch());
         product.setSeeThrough(request.seeThrough());
         product.setSeason(request.season());
+        product.setSearchKeywords(trimToNull(request.searchKeywords()));
+        product.setSeoDescription(trimToNull(request.seoDescription()));
+        product.setPurchasePrice(request.purchasePrice());
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private void replaceImages(Long productId, List<AdminProductRequest.ImageRequest> images, Instant now) {
@@ -351,7 +374,10 @@ public class AdminProductService {
                 product.getCreatedAt(),
                 product.getUpdatedAt(),
                 imageResponses,
-                skuResponses);
+                skuResponses,
+                product.getSearchKeywords(),
+                product.getSeoDescription(),
+                product.getPurchasePrice());
     }
 
     private Product requireProduct(Long productId) {

@@ -27,7 +27,10 @@ public record AdminProductResponse(
         Instant createdAt,
         Instant updatedAt,
         List<AdminImageResponse> images,
-        List<AdminSkuResponse> skus
+        List<AdminSkuResponse> skus,
+        String searchKeywords,
+        String seoDescription,
+        BigDecimal purchasePrice
 ) {
     public record AdminImageResponse(
             Long imageId,

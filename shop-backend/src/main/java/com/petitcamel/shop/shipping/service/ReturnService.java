@@ -5,9 +5,8 @@ import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.service.AuditLogService;
 import com.petitcamel.shop.inventory.domain.Inventory;
-import com.petitcamel.shop.inventory.domain.InventoryMovement;
+import com.petitcamel.shop.inventory.service.InventoryMovementWriter;
 import com.petitcamel.shop.inventory.domain.MovementType;
-import com.petitcamel.shop.inventory.repository.InventoryMovementRepository;
 import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.member.domain.Member;
 import com.petitcamel.shop.member.repository.MemberRepository;
@@ -83,7 +82,7 @@ public class ReturnService {
     private final OrderItemRepository orderItemRepository;
     private final PaymentRepository paymentRepository;
     private final InventoryRepository inventoryRepository;
-    private final InventoryMovementRepository inventoryMovementRepository;
+    private final InventoryMovementWriter movementWriter;
     private final MemberRepository memberRepository;
     private final ShipmentService shipmentService;
     private final ShippingFeeService shippingFeeService;
@@ -101,7 +100,7 @@ public class ReturnService {
             OrderItemRepository orderItemRepository,
             PaymentRepository paymentRepository,
             InventoryRepository inventoryRepository,
-            InventoryMovementRepository inventoryMovementRepository,
+            InventoryMovementWriter movementWriter,
             MemberRepository memberRepository,
             ShipmentService shipmentService,
             ShippingFeeService shippingFeeService,
@@ -117,7 +116,7 @@ public class ReturnService {
         this.orderItemRepository = orderItemRepository;
         this.paymentRepository = paymentRepository;
         this.inventoryRepository = inventoryRepository;
-        this.inventoryMovementRepository = inventoryMovementRepository;
+        this.movementWriter = movementWriter;
         this.memberRepository = memberRepository;
         this.shipmentService = shipmentService;
         this.shippingFeeService = shippingFeeService;
@@ -462,6 +461,7 @@ public class ReturnService {
     private void restoreStock(OrderItem item, String orderNo, Long actorId, Instant now) {
         Inventory inventory = inventoryRepository.findBySkuId(item.getSkuId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "재고 정보를 찾을 수 없습니다."));
+        int stockBefore = inventory.getStockQuantity() == null ? 0 : inventory.getStockQuantity();
         inventory.restoreStock(item.getQuantity());
         inventory.setUpdatedAt(now);
         try {
@@ -469,16 +469,8 @@ public class ReturnService {
         } catch (OptimisticLockingFailureException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, "재고가 다른 요청에 의해 변경되었습니다. 다시 시도해 주세요.");
         }
-        InventoryMovement movement = new InventoryMovement();
-        movement.setSkuId(item.getSkuId());
-        movement.setMovementType(MovementType.RETURN);
-        movement.setQuantity(item.getQuantity());
-        movement.setReferenceType("ORDER");
-        movement.setReferenceId(orderNo);
-        movement.setReason("반품 입고(재고 복구)");
-        movement.setActorMemberId(actorId);
-        movement.setCreatedAt(now);
-        inventoryMovementRepository.save(movement);
+        movementWriter.write(inventory, stockBefore, MovementType.RETURN, item.getQuantity(), "ORDER", orderNo,
+                "반품 입고(재고 복구)", actorId, now);
     }
 
     private void changeOrderStatus(OrderEntity order, OrderStatus next, Long actorId, Instant now) {

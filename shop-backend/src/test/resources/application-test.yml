@@ -17,6 +17,12 @@ app:
     openai:
       api-key:
       model:
+    analysis:
+      api-key:
+      mock-enabled: false
+      max-retries: 0
+  upload:
+    private-dir: ${java.io.tmpdir}/shop-ai-it-private
 
 shipping:
   provider: MANUAL

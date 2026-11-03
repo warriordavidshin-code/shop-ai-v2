@@ -7,5 +7,7 @@ public enum MovementType {
     RETURN,
     ADJUSTMENT,
     RESERVATION,
-    RELEASE
+    RELEASE,
+    /** Damaged or discarded stock written off. */
+    DAMAGE
 }

@@ -5,7 +5,9 @@ import com.petitcamel.shop.product.dto.AdminProductRequest;
 import com.petitcamel.shop.product.dto.AdminProductResponse;
 import com.petitcamel.shop.product.dto.ProductStatusUpdateRequest;
 import com.petitcamel.shop.product.service.AdminProductService;
+import com.petitcamel.shop.security.MemberPrincipal;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -42,15 +44,18 @@ public class AdminProductController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public AdminProductResponse createProduct(@Valid @RequestBody AdminProductRequest request) {
-        return adminProductService.createProduct(request);
+    public AdminProductResponse createProduct(
+            @Valid @RequestBody AdminProductRequest request,
+            @AuthenticationPrincipal MemberPrincipal principal) {
+        return adminProductService.createProduct(request, principal == null ? null : principal.getMemberId());
     }
 
     @PutMapping("/{productId}")
     public AdminProductResponse updateProduct(
             @PathVariable Long productId,
-            @Valid @RequestBody AdminProductRequest request) {
-        return adminProductService.updateProduct(productId, request);
+            @Valid @RequestBody AdminProductRequest request,
+            @AuthenticationPrincipal MemberPrincipal principal) {
+        return adminProductService.updateProduct(productId, request, principal == null ? null : principal.getMemberId());
     }
 
     @PostMapping("/{productId}/skus")

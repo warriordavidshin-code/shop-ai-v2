@@ -16,6 +16,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -66,6 +68,15 @@ public class GlobalExceptionHandler {
                 Map.of());
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return build(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                ErrorCode.PAYLOAD_TOO_LARGE.name(),
+                "업로드 파일이 너무 큽니다. 파일 크기와 개수를 확인해 주세요.",
+                Map.of());
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException ex) {
         return build(
@@ -81,6 +92,15 @@ public class GlobalExceptionHandler {
                 HttpStatus.FORBIDDEN,
                 ErrorCode.FORBIDDEN.name(),
                 "접근 권한이 없습니다.",
+                Map.of());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
+        return build(
+                HttpStatus.NOT_FOUND,
+                ErrorCode.NOT_FOUND.name(),
+                "요청한 리소스를 찾을 수 없습니다.",
                 Map.of());
     }
 

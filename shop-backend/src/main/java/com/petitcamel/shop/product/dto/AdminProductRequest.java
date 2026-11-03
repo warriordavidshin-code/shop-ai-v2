@@ -43,8 +43,24 @@ public record AdminProductRequest(
 
         @Valid @Size(max = 5) List<ImageRequest> images,
 
-        @Valid List<SkuRequest> skus
+        @Valid List<SkuRequest> skus,
+
+        @Size(max = 500) String searchKeywords,
+
+        @Size(max = 300) String seoDescription,
+
+        @DecimalMin("0") BigDecimal purchasePrice
 ) {
+    /** Constructor kept for callers that predate the AI / cost fields. */
+    public AdminProductRequest(
+            Long categoryId, String productName, String brandName, String summary, String description,
+            BigDecimal normalPrice, BigDecimal salePrice, ProductStatus status, String fitType, String material,
+            String thickness, String stretch, String seeThrough, String season, List<ImageRequest> images,
+            List<SkuRequest> skus) {
+        this(categoryId, productName, brandName, summary, description, normalPrice, salePrice, status, fitType,
+                material, thickness, stretch, seeThrough, season, images, skus, null, null, null);
+    }
+
     public record ImageRequest(
             @NotBlank @Size(max = 500) String imageUrl,
 

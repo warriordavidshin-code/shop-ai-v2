@@ -7,9 +7,9 @@ import com.petitcamel.shop.common.exception.BusinessException;
 import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.service.AuditLogService;
 import com.petitcamel.shop.inventory.domain.Inventory;
-import com.petitcamel.shop.inventory.domain.InventoryMovement;
 import com.petitcamel.shop.inventory.domain.MovementType;
-import com.petitcamel.shop.inventory.repository.InventoryMovementRepository;
+import com.petitcamel.shop.cost.service.ProductCostService;
+import com.petitcamel.shop.inventory.service.InventoryMovementWriter;
 import com.petitcamel.shop.inventory.repository.InventoryRepository;
 import com.petitcamel.shop.order.domain.OrderEntity;
 import com.petitcamel.shop.order.domain.OrderItem;
@@ -78,7 +78,8 @@ public class OrderService {
     private final ProductSkuRepository productSkuRepository;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
-    private final InventoryMovementRepository inventoryMovementRepository;
+    private final InventoryMovementWriter movementWriter;
+    private final ProductCostService productCostService;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final PaymentGateway paymentGateway;
@@ -95,7 +96,8 @@ public class OrderService {
             ProductSkuRepository productSkuRepository,
             ProductRepository productRepository,
             InventoryRepository inventoryRepository,
-            InventoryMovementRepository inventoryMovementRepository,
+            InventoryMovementWriter movementWriter,
+            ProductCostService productCostService,
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
             PaymentGateway paymentGateway,
@@ -110,7 +112,8 @@ public class OrderService {
         this.productSkuRepository = productSkuRepository;
         this.productRepository = productRepository;
         this.inventoryRepository = inventoryRepository;
-        this.inventoryMovementRepository = inventoryMovementRepository;
+        this.movementWriter = movementWriter;
+        this.productCostService = productCostService;
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.paymentGateway = paymentGateway;
@@ -250,7 +253,11 @@ public class OrderService {
         List<OrderItem> items = orderItemRepository.findByOrderId(order.getOrderId());
         for (OrderItem item : items) {
             confirmSaleInventory(item.getSkuId(), item.getQuantity(), order.getOrderNo(), memberId, now);
+            ProductCostService.AppliedCost cost = productCostService.costForSale(item.getProductId(), item.getSkuId());
+            item.setUnitCost(cost.unitCost());
+            item.setCostMethod(cost.source());
         }
+        orderItemRepository.saveAll(items);
 
         payment.setPaymentStatus(PaymentStatus.APPROVED);
         payment.setProviderTransactionId(result.providerTransactionId());
@@ -434,7 +441,7 @@ public class OrderService {
             item.setCreatedAt(now);
             orderItems.add(item);
 
-            writeMovement(line.skuId(), MovementType.RESERVATION, line.quantity(),
+            writeMovement(line.skuId(), MovementType.RESERVATION, line.quantity(), 0,
                     "ORDER", orderNo, "주문 재고 예약", memberId, now);
         }
         orderItemRepository.saveAll(orderItems);
@@ -486,7 +493,7 @@ public class OrderService {
         }
         inventory.setUpdatedAt(now);
         saveInventory(inventory);
-        writeMovement(skuId, MovementType.CANCEL, quantity, "ORDER", orderNo, "주문 취소(예약 해제)", memberId, now);
+        writeMovement(skuId, MovementType.CANCEL, quantity, 0, "ORDER", orderNo, "주문 취소(예약 해제)", memberId, now);
     }
 
     private void confirmSaleInventory(Long skuId, int quantity, String orderNo, Long memberId, Instant now) {
@@ -499,7 +506,7 @@ public class OrderService {
         }
         inventory.setUpdatedAt(now);
         saveInventory(inventory);
-        writeMovement(skuId, MovementType.SALE, quantity, "ORDER", orderNo, "결제 승인 재고 차감", memberId, now);
+        writeMovement(skuId, MovementType.SALE, quantity, -quantity, "ORDER", orderNo, "결제 승인 재고 차감", memberId, now);
     }
 
     private void restoreAfterPaidCancel(Long skuId, int quantity, String orderNo, Long memberId, Instant now) {
@@ -512,7 +519,7 @@ public class OrderService {
         }
         inventory.setUpdatedAt(now);
         saveInventory(inventory);
-        writeMovement(skuId, MovementType.CANCEL, quantity, "ORDER", orderNo, "결제 후 주문 취소(재고 복구)", memberId, now);
+        writeMovement(skuId, MovementType.CANCEL, quantity, quantity, "ORDER", orderNo, "결제 후 주문 취소(재고 복구)", memberId, now);
     }
 
     private void saveInventory(Inventory inventory) {
@@ -527,21 +534,17 @@ public class OrderService {
             Long skuId,
             MovementType type,
             int quantity,
+            int stockDelta,
             String referenceType,
             String referenceId,
             String reason,
             Long actorMemberId,
             Instant now) {
-        InventoryMovement movement = new InventoryMovement();
-        movement.setSkuId(skuId);
-        movement.setMovementType(type);
-        movement.setQuantity(quantity);
-        movement.setReferenceType(referenceType);
-        movement.setReferenceId(referenceId);
-        movement.setReason(reason);
-        movement.setActorMemberId(actorMemberId);
-        movement.setCreatedAt(now);
-        inventoryMovementRepository.save(movement);
+        Integer stockAfter = inventoryRepository.findBySkuId(skuId)
+                .map(Inventory::getStockQuantity).orElse(null);
+        Integer stockBefore = stockAfter == null ? null : stockAfter - stockDelta;
+        movementWriter.write(new InventoryMovementWriter.Entry(skuId, type, quantity, referenceType, referenceId,
+                reason, actorMemberId, now, stockBefore, stockAfter, null, null));
     }
 
     private String generateUniqueOrderNo() {

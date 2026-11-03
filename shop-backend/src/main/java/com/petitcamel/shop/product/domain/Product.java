@@ -65,6 +65,16 @@ public class Product {
     @Column(name = "season", length = 50)
     private String season;
 
+    @Column(name = "search_keywords", length = 500)
+    private String searchKeywords;
+
+    @Column(name = "seo_description", length = 300)
+    private String seoDescription;
+
+    /** Admin-entered purchase price; used as the standard cost when the costing method is STANDARD. */
+    @Column(name = "purchase_price", precision = 15, scale = 2)
+    private BigDecimal purchasePrice;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -193,6 +203,30 @@ public class Product {
 
     public void setSeason(String season) {
         this.season = season;
+    }
+
+    public String getSearchKeywords() {
+        return searchKeywords;
+    }
+
+    public void setSearchKeywords(String searchKeywords) {
+        this.searchKeywords = searchKeywords;
+    }
+
+    public String getSeoDescription() {
+        return seoDescription;
+    }
+
+    public void setSeoDescription(String seoDescription) {
+        this.seoDescription = seoDescription;
+    }
+
+    public BigDecimal getPurchasePrice() {
+        return purchasePrice;
+    }
+
+    public void setPurchasePrice(BigDecimal purchasePrice) {
+        this.purchasePrice = purchasePrice;
     }
 
     public Instant getCreatedAt() {

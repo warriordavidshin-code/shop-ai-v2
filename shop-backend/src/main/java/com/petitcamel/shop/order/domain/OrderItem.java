@@ -52,6 +52,29 @@ public class OrderItem {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Unit cost captured at sale confirmation; null for orders before cost tracking. */
+    @Column(name = "unit_cost", precision = 15, scale = 4)
+    private BigDecimal unitCost;
+
+    @Column(name = "cost_method", length = 30)
+    private String costMethod;
+
+    public BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+    public void setUnitCost(BigDecimal unitCost) {
+        this.unitCost = unitCost;
+    }
+
+    public String getCostMethod() {
+        return costMethod;
+    }
+
+    public void setCostMethod(String costMethod) {
+        this.costMethod = costMethod;
+    }
+
     public Long getOrderItemId() {
         return orderItemId;
     }

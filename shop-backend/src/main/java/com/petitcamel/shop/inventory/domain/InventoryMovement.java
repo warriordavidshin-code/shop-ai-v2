@@ -45,6 +45,61 @@ public class InventoryMovement {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "product_id")
+    private Long productId;
+
+    @Column(name = "stock_before")
+    private Integer stockBefore;
+
+    @Column(name = "stock_after")
+    private Integer stockAfter;
+
+    @Column(name = "purchase_receipt_id")
+    private Long purchaseReceiptId;
+
+    @Column(name = "unit_cost", precision = 15, scale = 4)
+    private java.math.BigDecimal unitCost;
+
+    public Long getProductId() {
+        return productId;
+    }
+
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
+
+    public Integer getStockBefore() {
+        return stockBefore;
+    }
+
+    public void setStockBefore(Integer stockBefore) {
+        this.stockBefore = stockBefore;
+    }
+
+    public Integer getStockAfter() {
+        return stockAfter;
+    }
+
+    public void setStockAfter(Integer stockAfter) {
+        this.stockAfter = stockAfter;
+    }
+
+    public Long getPurchaseReceiptId() {
+        return purchaseReceiptId;
+    }
+
+    public void setPurchaseReceiptId(Long purchaseReceiptId) {
+        this.purchaseReceiptId = purchaseReceiptId;
+    }
+
+    public java.math.BigDecimal getUnitCost() {
+        return unitCost;
+    }
+
+    public void setUnitCost(java.math.BigDecimal unitCost) {
+        this.unitCost = unitCost;
+    }
+
     public Long getMovementId() {
         return movementId;
     }

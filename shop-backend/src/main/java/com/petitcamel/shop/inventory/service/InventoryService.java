@@ -34,6 +34,7 @@ public class InventoryService {
     private final InventoryMovementRepository inventoryMovementRepository;
     private final ProductSkuRepository productSkuRepository;
     private final AuditLogService auditLogService;
+    private final InventoryMovementWriter movementWriter;
     private final Clock clock;
 
     public InventoryService(
@@ -41,11 +42,13 @@ public class InventoryService {
             InventoryMovementRepository inventoryMovementRepository,
             ProductSkuRepository productSkuRepository,
             AuditLogService auditLogService,
+            InventoryMovementWriter movementWriter,
             Clock clock) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryMovementRepository = inventoryMovementRepository;
         this.productSkuRepository = productSkuRepository;
         this.auditLogService = auditLogService;
+        this.movementWriter = movementWriter;
         this.clock = clock;
     }
 
@@ -58,6 +61,11 @@ public class InventoryService {
         Inventory inventory = inventoryRepository.findBySkuId(skuId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "재고 정보를 찾을 수 없습니다."));
 
+        MovementType type = request.damage() ? MovementType.DAMAGE : MovementType.ADJUSTMENT;
+        if (type == MovementType.DAMAGE && request.quantityDelta() >= 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "파손·폐기는 감소 수량(음수)으로 입력해 주세요.");
+        }
+        int stockBefore = inventory.getStockQuantity() == null ? 0 : inventory.getStockQuantity();
         try {
             inventory.applyAdjustment(request.quantityDelta());
         } catch (IllegalStateException ex) {
@@ -73,14 +81,8 @@ public class InventoryService {
             throw new BusinessException(ErrorCode.CONFLICT, "재고가 다른 요청에 의해 변경되었습니다. 다시 시도해 주세요.");
         }
 
-        InventoryMovement movement = new InventoryMovement();
-        movement.setSkuId(skuId);
-        movement.setMovementType(MovementType.ADJUSTMENT);
-        movement.setQuantity(request.quantityDelta());
-        movement.setReason(request.reason());
-        movement.setActorMemberId(actorMemberId);
-        movement.setCreatedAt(now);
-        inventoryMovementRepository.save(movement);
+        movementWriter.write(inventory, stockBefore, type, request.quantityDelta(), null, null, request.reason(),
+                actorMemberId, now);
 
         String reasonBrief = request.reason() == null ? "" : request.reason().trim();
         if (reasonBrief.length() > 120) {
@@ -88,7 +90,7 @@ public class InventoryService {
         }
         auditLogService.record(
                 actorMemberId,
-                "INVENTORY_ADJUST",
+                type == MovementType.DAMAGE ? "INVENTORY_DAMAGE" : "INVENTORY_ADJUST",
                 "SKU",
                 String.valueOf(skuId),
                 "quantityDelta=" + request.quantityDelta()
