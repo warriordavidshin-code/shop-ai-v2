@@ -26,7 +26,7 @@ public record AiCostProperties(
     public record Gemini(
             @DefaultValue("") String apiKey,
             @DefaultValue("true") boolean enabled,
-            @DefaultValue("gemini-2.5-flash") String model,
+            @DefaultValue("gemini-3.5-flash") String model,
             @DefaultValue("https://generativelanguage.googleapis.com/v1beta") String baseUrl,
             /* false when the Google project has billing enabled: calls then count against the paid budget */
             @DefaultValue("true") boolean freeTier,

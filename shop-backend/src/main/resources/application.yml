@@ -120,7 +120,7 @@ app:
       gemini:
         api-key: ${GEMINI_API_KEY:}
         enabled: ${GEMINI_ENABLED:true}
-        model: ${GEMINI_MODEL:gemini-2.5-flash}
+        model: ${GEMINI_MODEL:gemini-3.5-flash}
         base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
         free-tier: ${GEMINI_FREE_TIER:true}
         input-price-per-million: ${GEMINI_INPUT_PRICE_PER_MILLION:0.30}
