@@ -107,6 +107,29 @@ app:
       receipt-max-files: ${AI_RECEIPT_MAX_FILES:10}
       product-max-images: ${AI_PRODUCT_MAX_IMAGES:8}
       max-file-bytes: ${AI_MAX_FILE_BYTES:10485760}
+    # Free-first routing: local OCR + Java rules -> Gemini (free tier) -> OpenAI (only when explicitly
+    # enabled/approved) -> manual input. Paid APIs are never called automatically by default.
+    cost:
+      mode: ${AI_MODE:FREE_FIRST}
+      local-ocr-enabled: ${AI_LOCAL_OCR_ENABLED:true}
+      openai-enabled: ${OPENAI_ENABLED:false}
+      daily-request-limit: ${AI_DAILY_REQUEST_LIMIT:20}
+      monthly-budget-usd: ${AI_MONTHLY_BUDGET_USD:1.0}
+      cache-enabled: ${AI_CACHE_ENABLED:true}
+      paid-fallback-enabled: ${AI_PAID_FALLBACK_ENABLED:false}
+      gemini:
+        api-key: ${GEMINI_API_KEY:}
+        enabled: ${GEMINI_ENABLED:true}
+        model: ${GEMINI_MODEL:gemini-2.5-flash}
+        base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+        free-tier: ${GEMINI_FREE_TIER:true}
+        input-price-per-million: ${GEMINI_INPUT_PRICE_PER_MILLION:0.30}
+        output-price-per-million: ${GEMINI_OUTPUT_PRICE_PER_MILLION:2.50}
+        timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:90}
+      ocr:
+        url: ${AI_LOCAL_OCR_URL:http://localhost:8866}
+        timeout-seconds: ${AI_LOCAL_OCR_TIMEOUT_SECONDS:120}
+        min-confidence: ${AI_LOCAL_OCR_MIN_CONFIDENCE:0.75}
   timezone: Asia/Seoul
   upload:
     dir: ${UPLOAD_DIR:../uploads}

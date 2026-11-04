@@ -7,6 +7,7 @@ import {
   type AiAnalysisRow,
   type AiStatus,
   type AiUsage,
+  BILLING_LABELS,
   dateTime,
   errorMessage,
   num,
@@ -71,7 +72,7 @@ export function AiOperationsClient() {
             label="상태"
             value={status.available ? (status.mockMode ? "Mock 모드" : "사용 가능") : "사용 불가"}
             tone={status.available ? (status.mockMode ? "warn" : "ok") : "danger"}
-            sub={status.apiKeyConfigured ? "API 키 설정됨" : "API 키 미설정"}
+            sub={`${status.mode ?? ""} · Gemini 키 ${status.geminiKeyConfigured ? "설정됨" : "미설정"} · OpenAI 키 ${status.apiKeyConfigured ? "설정됨" : "미설정"}`}
           />
           <StatCard label="모델" value={status.model ?? "-"} sub={status.provider ?? undefined} />
           <StatCard label="영수증 분석" value={status.receiptEnabled ? "켜짐" : "꺼짐"} tone={status.receiptEnabled ? "ok" : undefined} />
@@ -90,7 +91,7 @@ export function AiOperationsClient() {
       >
         {usage ? (
           <div className="grid gap-3 sm:grid-cols-5">
-            <StatCard label="OpenAI 호출" value={`${num(usage.calls)}회`} />
+            <StatCard label="외부 AI 호출" value={`${num(usage.calls)}회`} />
             <StatCard label="실패" value={`${num(usage.failures)}회`} tone={usage.failures ? "warn" : undefined} />
             <StatCard label="입력 토큰" value={num(usage.inputTokens)} />
             <StatCard label="출력 토큰" value={num(usage.outputTokens)} />
@@ -139,7 +140,8 @@ export function AiOperationsClient() {
                 <td className="whitespace-nowrap">{dateTime(r.createdAt)}</td>
                 <td>{TYPE_LABELS[r.type] ?? r.type}</td>
                 <td>
-                  {r.provider === "MOCK" ? <Badge tone="warn">MOCK</Badge> : r.provider} {r.model ?? ""}
+                  {r.provider === "MOCK" ? <Badge tone="warn">MOCK</Badge> : r.provider} {r.model ?? ""}{" "}
+                  {r.billingType ? <Badge tone={r.billingType === "PAID" ? "warn" : "muted"}>{BILLING_LABELS[r.billingType] ?? r.billingType}</Badge> : null}
                 </td>
                 <td>
                   <Badge tone={r.status === "SUCCEEDED" ? "ok" : r.status === "FAILED" ? "danger" : "muted"}>{r.status === "SUCCEEDED" ? "성공" : r.status === "FAILED" ? "실패" : r.status}</Badge>

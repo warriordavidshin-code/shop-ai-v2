@@ -36,7 +36,11 @@ describe("manuals", () => {
     expect(html).toContain("입고 확정");
     expect(html).toContain("자동 발주는 없습니다");
     expect(html).toContain("AI_MOCK_ENABLED");
+    expect(html).toContain("AI_PAID_FALLBACK_ENABLED");
+    expect(html).toContain("유료 AI는 관리자 승인 없이 호출되지 않습니다");
+    expect(html).toContain("AI 추천관리");
     expect(html).not.toMatch(/sk-[A-Za-z0-9]{10,}/);
+    expect(html).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
   });
 
   it("escapes text and builds RFC 5987 download headers", () => {

@@ -85,6 +85,11 @@ async function proxy(request: NextRequest, pathSegments: string[]) {
   if (idempotencyKey) {
     headers.set("idempotency-key", idempotencyKey);
   }
+  // Recommendation tracking drops bot traffic by user agent.
+  const userAgent = request.headers.get("user-agent");
+  if (userAgent) {
+    headers.set("user-agent", userAgent.slice(0, 300));
+  }
 
   const init: RequestInit = {
     method: request.method,

@@ -56,13 +56,25 @@ public class AiUsageLogService {
             AiAnalysisType type, String inputHash, int fileCount, AiProviderType provider, String model,
             String promptVersion, String resultJson, Integer inputTokens, Integer outputTokens,
             long durationMs, int attempts, Long actorId) {
+        return recordSuccess(type, inputHash, fileCount, provider, model, promptVersion, resultJson, inputTokens,
+                outputTokens, durationMs, attempts, actorId,
+                provider == AiProviderType.OPENAI ? estimateCost(inputTokens, outputTokens) : null,
+                defaultBillingType(provider));
+    }
+
+    @Transactional
+    public AiAnalysisHistory recordSuccess(
+            AiAnalysisType type, String inputHash, int fileCount, AiProviderType provider, String model,
+            String promptVersion, String resultJson, Integer inputTokens, Integer outputTokens,
+            long durationMs, int attempts, Long actorId, BigDecimal estimatedCostUsd, String billingType) {
         AiAnalysisHistory history = base(type, inputHash, fileCount, provider, model, promptVersion, durationMs,
                 attempts, actorId);
         history.setStatus(AiAnalysisStatus.SUCCEEDED);
         history.setResultJson(resultJson);
         history.setInputTokens(inputTokens);
         history.setOutputTokens(outputTokens);
-        history.setEstimatedCostUsd(provider == AiProviderType.OPENAI ? estimateCost(inputTokens, outputTokens) : null);
+        history.setEstimatedCostUsd(estimatedCostUsd);
+        history.setBillingType(billingType);
         return repository.save(history);
     }
 
@@ -70,8 +82,18 @@ public class AiUsageLogService {
     public AiAnalysisHistory recordFailure(
             AiAnalysisType type, String inputHash, int fileCount, AiProviderType provider, String model,
             String promptVersion, String errorCode, String errorMessage, long durationMs, int attempts, Long actorId) {
+        return recordFailure(type, inputHash, fileCount, provider, model, promptVersion, errorCode, errorMessage,
+                durationMs, attempts, actorId, defaultBillingType(provider));
+    }
+
+    @Transactional
+    public AiAnalysisHistory recordFailure(
+            AiAnalysisType type, String inputHash, int fileCount, AiProviderType provider, String model,
+            String promptVersion, String errorCode, String errorMessage, long durationMs, int attempts, Long actorId,
+            String billingType) {
         AiAnalysisHistory history = base(type, inputHash, fileCount, provider, model, promptVersion, durationMs,
                 attempts, actorId);
+        history.setBillingType(billingType);
         history.setStatus(AiAnalysisStatus.FAILED);
         history.setErrorCode(truncate(errorCode, 50));
         history.setErrorMessage(truncate(errorMessage, 500));
@@ -90,14 +112,27 @@ public class AiUsageLogService {
     }
 
     public BigDecimal estimateCost(Integer inputTokens, Integer outputTokens) {
+        return estimateCost(inputTokens, outputTokens, properties.getInputPricePerMillion(),
+                properties.getOutputPricePerMillion());
+    }
+
+    public static BigDecimal estimateCost(Integer inputTokens, Integer outputTokens, BigDecimal inputPrice,
+                                          BigDecimal outputPrice) {
         if (inputTokens == null && outputTokens == null) {
             return null;
         }
-        BigDecimal in = BigDecimal.valueOf(inputTokens == null ? 0 : inputTokens)
-                .multiply(properties.getInputPricePerMillion());
-        BigDecimal out = BigDecimal.valueOf(outputTokens == null ? 0 : outputTokens)
-                .multiply(properties.getOutputPricePerMillion());
+        BigDecimal in = BigDecimal.valueOf(inputTokens == null ? 0 : inputTokens).multiply(inputPrice);
+        BigDecimal out = BigDecimal.valueOf(outputTokens == null ? 0 : outputTokens).multiply(outputPrice);
         return in.add(out).divide(MILLION, 6, RoundingMode.HALF_UP);
+    }
+
+    private static String defaultBillingType(AiProviderType provider) {
+        return switch (provider) {
+            case OPENAI -> "PAID";
+            case GEMINI -> "FREE";
+            case LOCAL_OCR -> "LOCAL";
+            case MOCK -> "NONE";
+        };
     }
 
     @Transactional(readOnly = true)

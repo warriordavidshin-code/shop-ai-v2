@@ -2,6 +2,7 @@
 import { Container } from "@/components/ui/Container";
 import { ProductGrid } from "@/components/product/ProductCard";
 import { HomeHeroBanner } from "@/components/home/HomeHeroBanner";
+import { PopularRecoSection, RecoSection } from "@/components/recommendations/RecoSection";
 import { fetchBestProducts, fetchNewProducts } from "@/features/products/api";
 
 const occasions = ["출근", "데이트", "결혼식", "여행", "데일리", "키즈"];
@@ -84,6 +85,10 @@ export default async function HomePage() {
             ))}
           </div>
         </section>
+
+        <RecoSection path="personalized" />
+
+        <PopularRecoSection />
 
         <section className="flex flex-col gap-4">
           <div className="flex items-end justify-between gap-3">

@@ -65,6 +65,19 @@
       AI_CACHE_DAYS: ${AI_CACHE_DAYS:-30}
       AI_INPUT_PRICE_PER_MILLION: ${AI_INPUT_PRICE_PER_MILLION:-0.40}
       AI_OUTPUT_PRICE_PER_MILLION: ${AI_OUTPUT_PRICE_PER_MILLION:-1.60}
+      # AI cost control: local OCR -> Gemini free tier -> OpenAI only when enabled and approved -> manual.
+      AI_MODE: ${AI_MODE:-FREE_FIRST}
+      AI_LOCAL_OCR_ENABLED: ${AI_LOCAL_OCR_ENABLED:-true}
+      AI_LOCAL_OCR_URL: ${AI_LOCAL_OCR_URL:-http://ocr:8866}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_FREE_TIER: ${GEMINI_FREE_TIER:-true}
+      OPENAI_ENABLED: ${OPENAI_ENABLED:-false}
+      AI_DAILY_REQUEST_LIMIT: ${AI_DAILY_REQUEST_LIMIT:-20}
+      AI_MONTHLY_BUDGET_USD: ${AI_MONTHLY_BUDGET_USD:-1.0}
+      AI_CACHE_ENABLED: ${AI_CACHE_ENABLED:-true}
+      AI_PAID_FALLBACK_ENABLED: ${AI_PAID_FALLBACK_ENABLED:-false}
       MULTIPART_MAX_FILE_SIZE: ${MULTIPART_MAX_FILE_SIZE:-10MB}
       MULTIPART_MAX_REQUEST_SIZE: ${MULTIPART_MAX_REQUEST_SIZE:-60MB}
       SHIPPING_PROVIDER: ${SHIPPING_PROVIDER:-SWEETTRACKER}
@@ -94,6 +107,22 @@
       retries: 12
       start_period: 60s
     stop_grace_period: 30s
+    networks:
+      - shop_ai_net
+
+  # Local receipt OCR (PaddleOCR, offline). Internal only; the backend falls back to Gemini/manual entry when it is down.
+  ocr:
+    image: shop-ai-v2-ocr:${OCR_IMAGE_TAG:-local}
+    build:
+      context: ./ocr-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      OCR_LANG: ${OCR_LANG:-korean}
+      OCR_CPU_THREADS: ${OCR_CPU_THREADS:-2}
+      OCR_USE_ANGLE_CLS: ${OCR_USE_ANGLE_CLS:-false}
+      TZ: Asia/Seoul
+    mem_limit: ${OCR_MEMORY_LIMIT:-2g}
     networks:
       - shop_ai_net
 

@@ -3,6 +3,7 @@ import { Container } from "@/components/ui/Container";
 import { ProductGrid } from "@/components/product/ProductCard";
 import { fetchProducts } from "@/features/products/api";
 import { ProductFilters } from "@/components/product/ProductFilters";
+import { SearchTracker } from "@/components/recommendations/Trackers";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -39,6 +40,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
           <h1 className="text-2xl font-semibold text-foreground">상품</h1>
           <p className="text-sm text-muted-foreground">총 {page.totalElements}개</p>
         </div>
+        <SearchTracker keyword={query.keyword} />
         <ProductFilters current={query} />
         <ProductGrid products={page.content} />
         {page.totalPages > 1 ? (

@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 @Service
 public class AiProductService {
 
-    static final String PROMPT_VERSION = "product-v2";
+    static final String PROMPT_VERSION = "product-v3";
 
     public record AltText(int imageIndex, String imageUrl, String altText) {
     }
@@ -86,7 +86,14 @@ public class AiProductService {
             BigDecimal confidence,
             List<String> needsConfirmation,
             List<String> warnings,
-            List<SimilarProduct> similarProducts
+            List<SimilarProduct> similarProducts,
+            String itemType,
+            String categoryGroup,
+            String colorTone,
+            List<String> styleTags,
+            List<String> designTags,
+            String billingType,
+            List<String> notices
     ) {
     }
 
@@ -156,9 +163,14 @@ public class AiProductService {
         this.uploadRoot = Path.of(uploadDir).toAbsolutePath().normalize();
     }
 
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ProductAnalysisResponse analyze(List<MultipartFile> files, List<String> imageUrls, String hint,
                                            boolean forceRefresh, Long actorId) {
+        return analyze(files, imageUrls, hint, forceRefresh, false, actorId);
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ProductAnalysisResponse analyze(List<MultipartFile> files, List<String> imageUrls, String hint,
+                                           boolean forceRefresh, boolean allowPaid, Long actorId) {
         aiAnalysisService.ensureAvailable(properties.isProductEnabled(), "AI 상품 자동등록");
         List<InspectedFile> images = collectImages(files, imageUrls);
         List<String> urls = new ArrayList<>();
@@ -168,7 +180,7 @@ public class AiProductService {
         if (imageUrls != null) {
             imageUrls.stream().filter(u -> u != null && !u.isBlank()).forEach(urls::add);
         }
-        return runAnalysis(images, urls, hint == null ? null : hint.trim(), forceRefresh, actorId);
+        return runAnalysis(images, urls, hint == null ? null : hint.trim(), forceRefresh, allowPaid, actorId);
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -196,12 +208,19 @@ public class AiProductService {
                     + (item.getColor() == null ? "" : ", 색상=" + item.getColor())
                     + (item.getSize() == null ? "" : ", 사이즈=" + item.getSize())
                     + (item.getSupplierProductCode() == null ? "" : ", 거래처코드=" + item.getSupplierProductCode());
-            if (!properties.isProductEnabled() || !properties.isAvailable()) {
+            if (!properties.isProductEnabled() || !aiAnalysisService.externalAvailable(false)) {
                 warnings.add("AI 기능을 사용할 수 없어 사진 분석 없이 거래명세표 정보만 채웠습니다.");
             } else {
-                analysis = analyze(files, imageUrls, hint, forceRefresh, actorId);
-                confirm.addAll(analysis.needsConfirmation());
-                warnings.addAll(analysis.warnings());
+                try {
+                    analysis = analyze(files, imageUrls, hint, forceRefresh, actorId);
+                    confirm.addAll(analysis.needsConfirmation());
+                    warnings.addAll(analysis.warnings());
+                } catch (BusinessException ex) {
+                    if (ex.getCode() == ErrorCode.VALIDATION_FAILED || ex.getCode() == ErrorCode.PAYLOAD_TOO_LARGE) {
+                        throw ex;
+                    }
+                    warnings.add("AI 사진 분석을 사용할 수 없어 거래명세표 정보만 채웠습니다. (" + ex.getMessage() + ")");
+                }
             }
         } else {
             warnings.add("상품 사진이 없어 설명·키워드는 생성하지 않았습니다. 사진을 올리고 [AI 설명 생성]을 눌러 주세요.");
@@ -244,7 +263,7 @@ public class AiProductService {
     }
 
     private ProductAnalysisResponse runAnalysis(List<InspectedFile> images, List<String> urls, String hint,
-                                                boolean forceRefresh, Long actorId) {
+                                                boolean forceRefresh, boolean allowPaid, Long actorId) {
         List<Category> categories = categoryRepository.findByActiveTrueOrderBySortOrderAsc();
         Map<Long, Category> byId = categories.stream()
                 .collect(Collectors.toMap(Category::getCategoryId, Function.identity()));
@@ -259,7 +278,8 @@ public class AiProductService {
 
         AiAnalysisService.Outcome outcome = aiAnalysisService.run(new AiAnalysisService.Spec(AiAnalysisType.PRODUCT,
                 PROMPT_VERSION, new AiStructuredRequest("product_draft", schema(), INSTRUCTIONS, userText, inputs),
-                contentHash, () -> mockOutput(inputs.size(), categories)), actorId, forceRefresh);
+                contentHash, () -> mockOutput(inputs.size(), categories)), actorId,
+                new AiAnalysisService.Options(forceRefresh, allowPaid));
 
         JsonNode out = outcome.output();
         List<String> warnings = new ArrayList<>();
@@ -301,7 +321,10 @@ public class AiProductService {
                 truncate(text(out, "see_through"), 50), strings(out.path("keywords")).stream().limit(20).toList(),
                 truncate(seo, 300), alts,
                 out.path("confidence").isNumber() ? out.path("confidence").decimalValue() : null, confirm, warnings,
-                similar);
+                similar, truncate(text(out, "item_type"), 30), text(out, "category_group"), text(out, "color_tone"),
+                strings(out.path("style_tags")).stream().limit(10).toList(),
+                strings(out.path("design_tags")).stream().limit(10).toList(),
+                outcome.billingType(), outcome.notices());
     }
 
     private List<InspectedFile> collectImages(List<MultipartFile> files, List<String> imageUrls) {
@@ -397,6 +420,11 @@ public class AiProductService {
                 .prop("confidence", StrictSchema.number("0~1"))
                 .prop("needs_confirmation", StrictSchema.array("관리자 확인이 필요한 항목", StrictSchema.string("항목")))
                 .prop("warnings", StrictSchema.array("경고", StrictSchema.string("경고")))
+                .prop("item_type", StrictSchema.nullableString("세부 품목(예: 니트, 블라우스, 셔츠, 슬랙스, 스커트, 데님팬츠, 원피스, 가디건)"))
+                .prop("category_group", StrictSchema.nullableEnumOf("대분류", "TOP", "BOTTOM", "DRESS", "OUTER", "ETC"))
+                .prop("color_tone", StrictSchema.nullableEnumOf("색감", "WARM", "COOL", "NEUTRAL", "MULTI"))
+                .prop("style_tags", StrictSchema.array("스타일 태그(예: 캐주얼, 오피스룩, 페미닌, 미니멀)", StrictSchema.string("태그")))
+                .prop("design_tags", StrictSchema.array("디자인 특징(예: 브이넥, 셔링, 체크, 롱기장)", StrictSchema.string("특징")))
                 .build();
     }
 
@@ -439,6 +467,11 @@ public class AiProductService {
         root.put("confidence", 0.0);
         root.putArray("needs_confirmation").add("[MOCK] 모든 항목");
         root.putArray("warnings").add("[MOCK] 실제 AI 분석 결과가 아닙니다.");
+        root.putNull("item_type");
+        root.putNull("category_group");
+        root.putNull("color_tone");
+        root.putArray("style_tags");
+        root.putArray("design_tags");
         return root;
     }
 

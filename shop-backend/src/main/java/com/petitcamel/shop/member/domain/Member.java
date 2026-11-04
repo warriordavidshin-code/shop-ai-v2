@@ -84,8 +84,19 @@ public class Member {
     @Column(name = "version", nullable = false)
     private Long version;
 
+    @Column(name = "personalization_enabled", nullable = false)
+    private boolean personalizationEnabled = true;
+
     public Long getMemberId() {
         return memberId;
+    }
+
+    public boolean isPersonalizationEnabled() {
+        return personalizationEnabled;
+    }
+
+    public void setPersonalizationEnabled(boolean personalizationEnabled) {
+        this.personalizationEnabled = personalizationEnabled;
     }
 
     public void setMemberId(Long memberId) {

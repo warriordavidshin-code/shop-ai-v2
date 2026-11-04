@@ -30,8 +30,9 @@ public class AiProductController {
             @RequestPart(value = "files", required = false) List<MultipartFile> files,
             @RequestParam(value = "imageUrls", required = false) List<String> imageUrls,
             @RequestParam(value = "hint", required = false) String hint,
-            @RequestParam(defaultValue = "false") boolean forceRefresh) {
-        return aiProductService.analyze(files, imageUrls, hint, forceRefresh, principal.getMemberId());
+            @RequestParam(defaultValue = "false") boolean forceRefresh,
+            @RequestParam(defaultValue = "false") boolean allowPaid) {
+        return aiProductService.analyze(files, imageUrls, hint, forceRefresh, allowPaid, principal.getMemberId());
     }
 
     /** Purchase statement line (+ optional photos) → product draft with recommended price. */

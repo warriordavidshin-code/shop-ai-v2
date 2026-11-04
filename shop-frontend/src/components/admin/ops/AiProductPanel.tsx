@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { adminJson, type AiStatus, errorMessage, postForm, type ProductAnalysis } from "@/features/admin/ops";
+import {
+  adminJson,
+  type AiStatus,
+  BILLING_LABELS,
+  errorMessage,
+  isPaidApprovalRequired,
+  postForm,
+  type ProductAnalysis,
+  PROVIDER_LABELS,
+} from "@/features/admin/ops";
 
 export type AiApply = {
   fields: Record<string, string>;
@@ -41,6 +50,7 @@ export function AiProductPanel({
   const [result, setResult] = useState<ProductAnalysis | null>(null);
   const [nameIndex, setNameIndex] = useState(0);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [paidPrompt, setPaidPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     adminJson<AiStatus>("/admin/ai/analysis-status").then(setStatus).catch(() => setStatus(null));
@@ -48,27 +58,39 @@ export function AiProductPanel({
 
   const usable = status?.productEnabled && status.available;
 
-  async function analyze(forceRefresh: boolean) {
+  async function analyze(forceRefresh: boolean, allowPaid = false) {
     if (imageUrls.length === 0) {
       setError("먼저 상품 이미지를 추가해 주세요.");
       return;
     }
     setBusy(true);
     setError(null);
+    setPaidPrompt(null);
     const body = new FormData();
     imageUrls.forEach((url) => body.append("imageUrls", url));
     const h = hint.trim() || productName.trim();
     if (h) body.append("hint", h);
     if (forceRefresh) body.append("forceRefresh", "true");
+    if (allowPaid) body.append("allowPaid", "true");
     try {
       const data = await postForm<ProductAnalysis>("/admin/products/ai/analyze", body);
       setResult(data);
       setNameIndex(0);
       setSelected({});
     } catch (e) {
-      setError(errorMessage(e, "AI 분석에 실패했습니다. 직접 입력해 주세요."));
+      if (isPaidApprovalRequired(e)) {
+        setPaidPrompt(errorMessage(e));
+      } else {
+        setError(errorMessage(e, "AI 분석에 실패했습니다. 직접 입력해 주세요."));
+      }
     } finally {
       setBusy(false);
+    }
+  }
+
+  function approvePaid() {
+    if (window.confirm("유료 AI(OpenAI)를 1회 호출합니다. 비용이 발생할 수 있으며 월 예산 한도 안에서만 실행됩니다. 진행할까요?")) {
+      void analyze(true, true);
     }
   }
 
@@ -128,7 +150,10 @@ export function AiProductPanel({
         <div className="mt-3 flex flex-col gap-3">
           {status && !usable ? (
             <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-900">
-              AI 상품 분석을 사용할 수 없습니다{!status.apiKeyConfigured ? " (서버에 OPENAI_API_KEY 미설정)" : ""}{!status.productEnabled ? " (AI_PRODUCT_ENABLED=false)" : ""}. 직접 입력해 주세요.
+              AI 상품 분석을 사용할 수 없습니다
+              {!status.productEnabled ? " (AI_PRODUCT_ENABLED=false)" : ""}
+              {status.mode === "MANUAL" || status.mode === "LOCAL_ONLY" ? " (현재 AI 모드에서는 외부 AI를 호출하지 않습니다)" : ""}
+              {status.geminiKeyConfigured === false && !status.apiKeyConfigured ? " (서버에 GEMINI_API_KEY 미설정)" : ""}. 직접 입력해 주세요.
             </p>
           ) : null}
           {status?.mockMode ? (
@@ -152,12 +177,28 @@ export function AiProductPanel({
             ) : null}
           </div>
           {error ? <p className="text-danger">{error}</p> : null}
+          {paidPrompt ? (
+            <div className="rounded border border-amber-300 bg-amber-50 px-2 py-2 text-amber-900">
+              <p>{paidPrompt}</p>
+              <button type="button" className="mt-2 h-9 rounded-lg bg-brand px-3 text-white disabled:opacity-50" disabled={busy} onClick={approvePaid}>
+                유료 AI(OpenAI) 1회 사용 승인
+              </button>
+            </div>
+          ) : null}
           {result ? (
             <div className="flex flex-col gap-2">
               <p className="text-xs text-muted-foreground">
-                {result.mock ? "MOCK" : `${result.provider} ${result.model ?? ""}`} {result.cached ? "· 캐시" : ""}{" "}
+                {result.mock ? "MOCK" : `${PROVIDER_LABELS[result.provider] ?? result.provider} ${result.model ?? ""}`}
+                {result.billingType ? ` · ${BILLING_LABELS[result.billingType] ?? result.billingType}` : ""} {result.cached ? "· 캐시" : ""}{" "}
                 {result.confidence !== null ? `· 신뢰도 ${Math.round(Number(result.confidence) * 100)}%` : ""}
               </p>
+              {result.notices && result.notices.length > 0 ? (
+                <ul className="list-disc pl-4 text-xs text-muted-foreground">
+                  {result.notices.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              ) : null}
               {result.similarProducts.length > 0 ? (
                 <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
                   비슷한 기존 상품:{" "}

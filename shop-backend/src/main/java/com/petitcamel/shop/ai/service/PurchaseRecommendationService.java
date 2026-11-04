@@ -147,18 +147,19 @@ public class PurchaseRecommendationService {
         Long analysisId = null;
         boolean aiUsed = false;
         if (useAi && !metricsList.isEmpty()) {
-            if (!aiProperties.isAvailable()) {
-                warnings.add("OpenAI API 키가 없어 규칙 기반 사유만 표시합니다.");
+            if (!aiAnalysisService.externalAvailable(false)) {
+                warnings.add("사용 가능한 무료 AI(Gemini)가 없어 규칙 기반 사유만 표시합니다. (유료 API는 자동 호출하지 않습니다)");
             } else {
                 try {
                     var outcome = aiAnalysisService.run(spec(metricsList), actorId, false);
+                    warnings.addAll(outcome.notices());
                     for (JsonNode node : outcome.output().path("recommendations")) {
                         long skuId = node.path("sku_id").asLong();
                         aiReasons.put(skuId, node.path("reason").asText());
                         aiPriority.put(skuId, node.path("priority").asInt());
                     }
                     summary = outcome.output().path("summary").asText(null);
-                    provider = outcome.mock() ? "MOCK" : "OPENAI";
+                    provider = outcome.provider().name();
                     analysisId = outcome.analysisId();
                     aiUsed = true;
                     if (outcome.mock()) {

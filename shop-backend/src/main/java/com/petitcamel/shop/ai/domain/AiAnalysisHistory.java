@@ -82,8 +82,19 @@ public class AiAnalysisHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "billing_type", nullable = false, length = 10)
+    private String billingType = "PAID";
+
     public Long getId() {
         return id;
+    }
+
+    public String getBillingType() {
+        return billingType;
+    }
+
+    public void setBillingType(String billingType) {
+        this.billingType = billingType;
     }
 
     public AiAnalysisType getAnalysisType() {

@@ -308,7 +308,7 @@ class PurchaseInventoryFlowIT {
                         .file(new MockMultipartFile("files", "r.png", "image/png", png))
                         .cookie(new Cookie("access_token", adminToken)).with(csrf()))
                 .andExpect(status().isServiceUnavailable())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("API 키")));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("수동 입력")));
         mockMvc.perform(get("/api/admin/ai/analysis-status").cookie(new Cookie("access_token", adminToken)))
                 .andExpect(jsonPath("$.apiKeyConfigured").value(false))
                 .andExpect(jsonPath("$.available").value(false));

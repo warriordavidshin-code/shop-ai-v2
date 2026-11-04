@@ -5,8 +5,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   adminJson,
+  AI_MODE_LABELS,
   type AiStatus,
+  BILLING_LABELS,
   errorMessage,
+  isPaidApprovalRequired,
+  PROVIDER_LABELS,
   type LedgerDetail,
   MATCH_STATUS_LABELS,
   postForm,
@@ -236,6 +240,7 @@ export function PurchaseAiClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
+  const [paidPrompt, setPaidPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     adminJson<AiStatus>("/admin/ai/analysis-status")
@@ -243,24 +248,36 @@ export function PurchaseAiClient() {
       .catch(() => setStatus(null));
   }, []);
 
-  async function analyze(forceRefresh: boolean) {
+  async function analyze(forceRefresh: boolean, allowPaid = false) {
     if (files.length === 0) {
       setError("분석할 파일을 선택해 주세요.");
       return;
     }
     setBusy(true);
     setError(null);
+    setPaidPrompt(null);
     const body = new FormData();
     files.forEach((file) => body.append("files", file));
     if (forceRefresh) body.append("forceRefresh", "true");
+    if (allowPaid) body.append("allowPaid", "true");
     try {
       const analysis = await postForm<ReceiptAnalysis>("/admin/purchases/ai/analyze", body);
       setResult(analysis);
       setSelected(0);
     } catch (e) {
-      setError(errorMessage(e, "AI 분석에 실패했습니다. 직접 입력으로 등록할 수 있습니다."));
+      if (isPaidApprovalRequired(e)) {
+        setPaidPrompt(errorMessage(e));
+      } else {
+        setError(errorMessage(e, "AI 분석에 실패했습니다. 직접 입력으로 등록할 수 있습니다."));
+      }
     } finally {
       setBusy(false);
+    }
+  }
+
+  function approvePaid() {
+    if (window.confirm("유료 AI(OpenAI)를 1회 호출합니다. 비용이 발생할 수 있으며 월 예산 한도 안에서만 실행됩니다. 진행할까요?")) {
+      void analyze(true, true);
     }
   }
 
@@ -293,7 +310,7 @@ export function PurchaseAiClient() {
           <Notice tone="warn">
             AI 영수증 분석을 사용할 수 없습니다.
             {!status.receiptEnabled ? " (AI_RECEIPT_ENABLED=false)" : ""}
-            {!status.apiKeyConfigured ? " 서버에 OPENAI_API_KEY 가 설정되지 않았습니다." : ""} 직접 입력으로 등록해 주세요.
+            {status.mode === "MANUAL" ? " 현재 AI 모드가 '수동 입력'입니다." : ""} 직접 입력으로 등록해 주세요.
           </Notice>
         ) : status.mockMode ? (
           <Notice tone="warn">
@@ -301,7 +318,9 @@ export function PurchaseAiClient() {
           </Notice>
         ) : (
           <Notice>
-            모델 {status.model ?? "-"} 사용. 원본은 비공개 저장소에 보관되며, AI는 확인할 수 없는 값을 비워 둡니다.
+            {status.mode ? `${AI_MODE_LABELS[status.mode] ?? status.mode}. ` : ""}
+            로컬 OCR과 규칙으로 먼저 읽고, 불확실할 때만 무료 AI(Gemini)를 사용합니다. 유료 AI는 승인 없이 호출하지 않습니다.
+            원본은 비공개 저장소에 보관되며, 확인할 수 없는 값은 비워 둡니다.
           </Notice>
         )
       ) : null}
@@ -343,6 +362,19 @@ export function PurchaseAiClient() {
       </Section>
 
       {error ? <Notice tone="danger">{error}</Notice> : null}
+      {paidPrompt ? (
+        <Notice tone="warn">
+          <p>{paidPrompt}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className={primaryButtonClass} disabled={busy} onClick={approvePaid}>
+              유료 AI(OpenAI) 1회 사용 승인
+            </button>
+            <Link href="/admin/purchases/new" className={buttonClass}>
+              직접 입력
+            </Link>
+          </div>
+        </Notice>
+      ) : null}
 
       {result ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -366,10 +398,24 @@ export function PurchaseAiClient() {
           <div className="flex flex-col gap-3">
             <Section title="2. AI 분석 결과">
               <div className="flex flex-wrap gap-2 text-xs">
-                <Badge tone={result.mock ? "warn" : "ok"}>{result.mock ? "MOCK 결과" : `AI · ${result.model ?? result.provider}`}</Badge>
+                <Badge tone={result.mock ? "warn" : "ok"}>
+                  {result.mock ? "MOCK 결과" : `${PROVIDER_LABELS[result.provider] ?? result.provider} · ${result.model ?? "-"}`}
+                </Badge>
+                {result.billingType ? (
+                  <Badge tone={result.billingType === "PAID" ? "warn" : "muted"}>{BILLING_LABELS[result.billingType] ?? result.billingType}</Badge>
+                ) : null}
                 {result.cached ? <Badge>캐시된 결과</Badge> : null}
                 {result.estimatedCostUsd !== null ? <Badge>예상 비용 ${Number(result.estimatedCostUsd).toFixed(4)}</Badge> : null}
               </div>
+              <WarningList items={result.notices} tone="info" />
+              {result.paidApprovalAvailable ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  결과가 불확실하면 유료 AI로 다시 분석할 수 있습니다.
+                  <button type="button" className={buttonClass} disabled={busy} onClick={approvePaid}>
+                    유료 AI로 재분석 (승인)
+                  </button>
+                </div>
+              ) : null}
               <Table>
                 <thead>
                   <tr>

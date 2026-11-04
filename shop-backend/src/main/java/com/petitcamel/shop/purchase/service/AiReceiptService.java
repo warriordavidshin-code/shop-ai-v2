@@ -8,9 +8,12 @@ import com.petitcamel.shop.ai.client.AiInputFile;
 import com.petitcamel.shop.ai.client.AiStructuredRequest;
 import com.petitcamel.shop.ai.config.AiAnalysisProperties;
 import com.petitcamel.shop.ai.domain.AiAnalysisType;
+import com.petitcamel.shop.ai.domain.AiMode;
 import com.petitcamel.shop.ai.service.AiAnalysisService;
+import com.petitcamel.shop.ai.service.AiSettingsService;
 import com.petitcamel.shop.ai.support.StrictSchema;
 import com.petitcamel.shop.common.exception.BusinessException;
+import com.petitcamel.shop.common.exception.ErrorCode;
 import com.petitcamel.shop.common.storage.InspectedFile;
 import com.petitcamel.shop.common.storage.UploadedFileInspector;
 import com.petitcamel.shop.purchase.domain.PurchaseEnums.EvidenceAiStatus;
@@ -45,7 +48,7 @@ import java.util.Map;
 @Service
 public class AiReceiptService {
 
-    static final String PROMPT_VERSION = "receipt-v2";
+    static final String PROMPT_VERSION = "receipt-v3";
     static final BigDecimal LOW_CONFIDENCE = new BigDecimal("0.7");
     private static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
 
@@ -69,12 +72,20 @@ public class AiReceiptService {
             Map<String, BigDecimal> fieldConfidence,
             List<ReviewField> reviewFields,
             List<String> warnings,
-            List<PurchaseDtos.DuplicateCandidate> duplicates
+            List<PurchaseDtos.DuplicateCandidate> duplicates,
+            /* FREE / PAID / LOCAL / NONE */
+            String billingType,
+            /* routing notes for the admin (cache reuse, quota exceeded, fallback used, ...) */
+            List<String> notices,
+            /* true when a paid API (OpenAI) could improve an uncertain result after explicit approval */
+            boolean paidApprovalAvailable
     ) {
     }
 
     private final AiAnalysisService aiAnalysisService;
     private final AiAnalysisProperties properties;
+    private final AiSettingsService settingsService;
+    private final LocalReceiptAnalyzer localAnalyzer;
     private final PurchaseEvidenceService evidenceService;
     private final PurchaseEvidenceRepository evidenceRepository;
     private final PurchaseLedgerService ledgerService;
@@ -82,10 +93,13 @@ public class AiReceiptService {
     private final Clock clock;
 
     public AiReceiptService(AiAnalysisService aiAnalysisService, AiAnalysisProperties properties,
+                            AiSettingsService settingsService, LocalReceiptAnalyzer localAnalyzer,
                             PurchaseEvidenceService evidenceService, PurchaseEvidenceRepository evidenceRepository,
                             PurchaseLedgerService ledgerService, ObjectMapper objectMapper, Clock clock) {
         this.aiAnalysisService = aiAnalysisService;
         this.properties = properties;
+        this.settingsService = settingsService;
+        this.localAnalyzer = localAnalyzer;
         this.evidenceService = evidenceService;
         this.evidenceRepository = evidenceRepository;
         this.ledgerService = ledgerService;
@@ -93,10 +107,20 @@ public class AiReceiptService {
         this.clock = clock;
     }
 
-    /** Not transactional as a whole: files are stored first so a failed AI call can be retried without re-upload. */
-    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public ReceiptAnalysisResponse analyze(List<MultipartFile> files, boolean forceRefresh, Long actorId) {
+        return analyze(files, forceRefresh, false, actorId);
+    }
+
+    /**
+     * Free-first receipt analysis: local OCR + Java rules first; Gemini only when the rule result is uncertain;
+     * OpenAI only when enabled and approved. Not transactional as a whole: files are stored first so a failed
+     * AI call can be retried without re-upload.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public ReceiptAnalysisResponse analyze(List<MultipartFile> files, boolean forceRefresh, boolean allowPaid,
+                                           Long actorId) {
         aiAnalysisService.ensureAvailable(properties.isReceiptEnabled(), "AI 영수증 분석");
+        AiSettingsService.Effective settings = settingsService.effective();
         List<InspectedFile> inspected = evidenceService.inspectAll(files, properties.getReceiptMaxFiles());
         List<PurchaseEvidence> evidences = new ArrayList<>();
         for (InspectedFile file : inspected) {
@@ -107,20 +131,60 @@ public class AiReceiptService {
         String contentHash = UploadedFileInspector.sha256(String.join(",",
                 inspected.stream().map(InspectedFile::sha256).toList()));
 
+        List<String> notices = new ArrayList<>();
+        LocalReceiptAnalyzer.Result local = null;
+        if (settings.localOcrAllowed() && !settings.mockEnabled()) {
+            local = localAnalyzer.analyze(inputs, contentHash, settings.cacheEnabled() && !forceRefresh, actorId)
+                    .orElse(null);
+            if (local == null) {
+                notices.add("로컬 OCR 서버에 연결하지 못했습니다.");
+            } else if (!local.uncertain()) {
+                notices.addAll(local.outcome().notices());
+                return buildResponse(local.outcome(), evidences, notices, false);
+            } else {
+                notices.add("로컬 OCR 결과가 불확실합니다: " + String.join(" ", local.reasons()));
+            }
+        }
+        if (settings.mode() == AiMode.LOCAL_ONLY) {
+            if (local != null) {
+                notices.add("로컬 전용 모드이므로 외부 AI는 호출하지 않았습니다. 값을 직접 확인해 주세요.");
+                return buildResponse(local.outcome(), evidences, notices, false);
+            }
+            markEvidence(evidences, EvidenceAiStatus.FAILED, null, null);
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE,
+                    "로컬 OCR 서버에 연결할 수 없습니다. OCR 서비스 상태를 확인하거나 수동으로 입력해 주세요.");
+        }
+
+        String userText = "첨부한 " + inputs.size() + "개 파일(file_index 0부터)을 분석하라.";
+        if (local != null && !local.ocrText().isBlank()) {
+            String ocrText = local.ocrText().length() > 6000 ? local.ocrText().substring(0, 6000) : local.ocrText();
+            userText += "\n참고용 로컬 OCR 텍스트(오인식이 있을 수 있으니 이미지와 대조하라):\n" + ocrText;
+        }
         AiAnalysisService.Outcome outcome;
         try {
             outcome = aiAnalysisService.run(new AiAnalysisService.Spec(AiAnalysisType.RECEIPT, PROMPT_VERSION,
-                    new AiStructuredRequest("purchase_receipt", schema(), INSTRUCTIONS,
-                            "첨부한 " + inputs.size() + "개 파일(file_index 0부터)을 분석하라.", inputs),
-                    contentHash, () -> mockOutput(inputs.size())), actorId, forceRefresh);
+                    new AiStructuredRequest("purchase_receipt", schema(), INSTRUCTIONS, userText, inputs),
+                    contentHash, () -> mockOutput(inputs.size())), actorId,
+                    new AiAnalysisService.Options(forceRefresh, allowPaid));
         } catch (BusinessException ex) {
+            if (local != null) {
+                notices.add(ex.getMessage());
+                return buildResponse(local.outcome(), evidences, notices,
+                        ex.getCode() == ErrorCode.AI_PAID_APPROVAL_REQUIRED);
+            }
             markEvidence(evidences, EvidenceAiStatus.FAILED, null, null);
             throw ex;
         }
-        return buildResponse(outcome, evidences);
+        notices.addAll(outcome.notices());
+        return buildResponse(outcome, evidences, notices, false);
     }
 
     ReceiptAnalysisResponse buildResponse(AiAnalysisService.Outcome outcome, List<PurchaseEvidence> evidences) {
+        return buildResponse(outcome, evidences, outcome.notices(), false);
+    }
+
+    ReceiptAnalysisResponse buildResponse(AiAnalysisService.Outcome outcome, List<PurchaseEvidence> evidences,
+                                          List<String> notices, boolean paidApprovalAvailable) {
         JsonNode out = outcome.output();
         List<String> warnings = new ArrayList<>();
         List<ReviewField> review = new ArrayList<>();
@@ -276,7 +340,7 @@ public class AiReceiptService {
         return new ReceiptAnalysisResponse(outcome.analysisId(), outcome.provider().name(), outcome.model(),
                 outcome.mock(), outcome.cached(), outcome.estimatedCostUsd(),
                 evidenceService.toResponses(evidenceRepository.findAllById(evidenceIds)), documents, draft, confidence,
-                review, warnings, duplicates);
+                review, warnings, duplicates, outcome.billingType(), List.copyOf(notices), paidApprovalAvailable);
     }
 
     private void markEvidence(List<PurchaseEvidence> evidences, EvidenceAiStatus status, Long analysisId,

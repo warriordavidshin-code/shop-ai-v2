@@ -21,6 +21,19 @@ app:
       api-key:
       mock-enabled: false
       max-retries: 0
+    cost:
+      mode: FREE_FIRST
+      local-ocr-enabled: false
+      openai-enabled: false
+      paid-fallback-enabled: false
+      daily-request-limit: 20
+      monthly-budget-usd: 1.0
+      gemini:
+        api-key:
+        max-retries: 0
+      ocr:
+        url: http://127.0.0.1:9
+        timeout-seconds: 5
   upload:
     private-dir: ${java.io.tmpdir}/shop-ai-it-private
 

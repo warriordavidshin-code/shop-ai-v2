@@ -59,7 +59,10 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout",
                                 "/api/auth/kakao/**",
-                                "/api/auth/naver/**"
+                                "/api/auth/naver/**",
+                                // signed, de-duplicated analytics beacons; they change no user data
+                                "/api/recommendations/events",
+                                "/api/recommendations/track/**"
                         ))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -68,7 +71,9 @@ public class SecurityConfig {
                                 "/api/auth/login",
                                 "/api/auth/password-reset",
                                 "/api/auth/refresh",
-                                "/api/auth/logout"
+                                "/api/auth/logout",
+                                "/api/recommendations/events",
+                                "/api/recommendations/track/**"
                         ).permitAll()
                         .requestMatchers(
                                 "/api/auth/kakao/**",
@@ -88,6 +93,7 @@ public class SecurityConfig {
                                 "/api/categories/**",
                                 "/api/products",
                                 "/api/products/**",
+                                "/api/recommendations/**",
                                 "/api/hero-banners",
                                 "/api/shipping/policy",
                                 "/api/shipping/quote",

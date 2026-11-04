@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { MypageClient } from "@/components/member/MypageClient";
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
+import { MypageRecommendations } from "@/components/recommendations/MypageRecommendations";
 import { memberSchema } from "@/features/auth/schemas";
 import { orderSummarySchema } from "@/features/orders/api";
 import { formatDateTime } from "@/features/orders/status";
@@ -77,6 +78,8 @@ export default async function MypagePage({ searchParams }: { searchParams: Searc
           </ul>
         )}
       </section>
+
+      <MypageRecommendations />
 
       <section className="grid gap-3 sm:grid-cols-2">
         <Link

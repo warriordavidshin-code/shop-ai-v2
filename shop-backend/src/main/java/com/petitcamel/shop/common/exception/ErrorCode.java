@@ -16,6 +16,10 @@ public enum ErrorCode {
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
     /** An external API (e.g. OpenAI) failed or returned an unusable answer. */
     EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY),
+    /** Free AI quota is used up; a paid provider could run but needs explicit admin approval. */
+    AI_PAID_APPROVAL_REQUIRED(HttpStatus.CONFLICT),
+    /** Daily AI request limit or monthly AI budget is exhausted; new external calls are blocked. */
+    AI_LIMIT_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus status;

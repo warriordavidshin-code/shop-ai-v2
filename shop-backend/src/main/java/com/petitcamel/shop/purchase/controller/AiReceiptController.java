@@ -27,7 +27,8 @@ public class AiReceiptController {
     @PostMapping(value = "/analyze", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public AiReceiptService.ReceiptAnalysisResponse analyze(@AuthenticationPrincipal MemberPrincipal principal,
                                                             @RequestPart("files") List<MultipartFile> files,
-                                                            @RequestParam(defaultValue = "false") boolean forceRefresh) {
-        return aiReceiptService.analyze(files, forceRefresh, principal.getMemberId());
+                                                            @RequestParam(defaultValue = "false") boolean forceRefresh,
+                                                            @RequestParam(defaultValue = "false") boolean allowPaid) {
+        return aiReceiptService.analyze(files, forceRefresh, allowPaid, principal.getMemberId());
     }
 }

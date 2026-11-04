@@ -21,7 +21,8 @@ public interface AiAnalysisHistoryRepository extends JpaRepository<AiAnalysisHis
                    coalesce(sum(h.outputTokens), 0) as outputTokens,
                    coalesce(sum(h.estimatedCostUsd), 0) as estimatedCostUsd
             from AiAnalysisHistory h
-            where h.createdAt >= :from and h.provider = com.petitcamel.shop.ai.domain.AiProviderType.OPENAI
+            where h.createdAt >= :from and h.provider in (com.petitcamel.shop.ai.domain.AiProviderType.OPENAI,
+                                                          com.petitcamel.shop.ai.domain.AiProviderType.GEMINI)
             """)
     UsageSummary usageSince(@Param("from") Instant from);
 

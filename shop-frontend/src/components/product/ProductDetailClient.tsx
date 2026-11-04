@@ -9,6 +9,7 @@ import { ProductHtmlDescription } from "@/components/product/ProductHtmlDescript
 import type { ProductDetail } from "@/features/products/api";
 import { addCartItem, readGuestCart, writeGuestCart } from "@/features/cart/api";
 import { addWishlist } from "@/features/wishlist/api";
+import { recoSourceFor, sendRecoEvent } from "@/features/recommendations/api";
 import { ApiError } from "@/lib/api/client";
 
 export function ProductDetailClient({ product }: { product: ProductDetail }) {
@@ -34,6 +35,7 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
     setMessage(null);
     try {
       await addCartItem(selectedSku.skuId, 1);
+      sendRecoEvent(recoSourceFor(product.productId), "CART", product.productId);
       setMessage("장바구니에 담았습니다.");
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -42,6 +44,7 @@ export function ProductDetailClient({ product }: { product: ProductDetail }) {
         if (existing) existing.quantity += 1;
         else guest.push({ skuId: selectedSku.skuId, quantity: 1 });
         writeGuestCart(guest);
+        sendRecoEvent(recoSourceFor(product.productId), "CART", product.productId);
         setMessage("비회원 장바구니에 담았습니다. 로그인 시 병합됩니다.");
       } else {
         setMessage(e instanceof ApiError ? e.message : "장바구니 담기에 실패했습니다.");

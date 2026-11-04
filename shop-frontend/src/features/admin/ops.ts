@@ -1,4 +1,4 @@
-import { parseApiError, shopFetch } from "@/lib/api/client";
+import { ApiError, parseApiError, shopFetch } from "@/lib/api/client";
 
 export type Page<T> = {
   content: T[];
@@ -304,6 +304,9 @@ export type ReceiptAnalysis = {
   reviewFields: { field: string; reason: string }[];
   warnings: string[];
   duplicates: DuplicateCandidate[];
+  billingType?: string | null;
+  notices?: string[];
+  paidApprovalAvailable?: boolean;
 };
 
 export type Candidate = {
@@ -688,7 +691,141 @@ export type AiStatus = {
   available: boolean;
   model: string | null;
   provider: string | null;
+  mode?: string;
+  geminiKeyConfigured?: boolean;
+  localOcrEnabled?: boolean;
+  openaiEnabled?: boolean;
+  paidFallbackEnabled?: boolean;
 };
+
+export const AI_MODE_LABELS: Record<string, string> = {
+  FREE_FIRST: "무료 우선 (로컬 OCR → Gemini 무료 → 승인 시 OpenAI)",
+  GEMINI: "Gemini만 사용",
+  OPENAI: "OpenAI 사용 (유료)",
+  LOCAL_ONLY: "로컬 OCR만 사용 (외부 AI 호출 없음)",
+  MANUAL: "수동 입력 (AI 사용 안 함)",
+};
+
+export const BILLING_LABELS: Record<string, string> = {
+  FREE: "무료",
+  PAID: "유료",
+  LOCAL: "로컬(무료)",
+  NONE: "비용 없음",
+};
+
+export const PROVIDER_LABELS: Record<string, string> = {
+  LOCAL_OCR: "로컬 OCR",
+  GEMINI: "Gemini",
+  OPENAI: "OpenAI",
+  MOCK: "Mock",
+  RULE: "규칙",
+};
+
+/** Backend 409 asking the admin to explicitly approve a paid (OpenAI) call. */
+export function isPaidApprovalRequired(e: unknown): boolean {
+  return e instanceof ApiError && e.code === "AI_PAID_APPROVAL_REQUIRED";
+}
+
+export type AiEffectiveSettings = {
+  mode: string;
+  localOcrEnabled: boolean;
+  geminiEnabled: boolean;
+  openaiEnabled: boolean;
+  paidFallbackEnabled: boolean;
+  cacheEnabled: boolean;
+  dailyRequestLimit: number;
+  monthlyBudgetUsd: number;
+  geminiKeyConfigured: boolean;
+  openaiKeyConfigured: boolean;
+  geminiFreeTier: boolean;
+  mockEnabled: boolean;
+  geminiModel: string | null;
+  openaiModel: string | null;
+};
+
+export type AiOverrides = {
+  mode: string | null;
+  localOcrEnabled: boolean | null;
+  geminiEnabled: boolean | null;
+  openaiEnabled: boolean | null;
+  paidFallbackEnabled: boolean | null;
+  cacheEnabled: boolean | null;
+  dailyRequestLimit: number | null;
+  monthlyBudgetUsd: number | null;
+};
+
+export type AiSettingsView = {
+  effective: AiEffectiveSettings;
+  overrides: AiOverrides;
+  environmentDefaults: Record<string, string | number | boolean>;
+  localOcrHealthy: boolean;
+  modes: string[];
+};
+
+export type AiProviderUsage = {
+  provider: string;
+  model: string | null;
+  enabled: boolean;
+  keyConfigured: boolean;
+  billing: string;
+  todayCalls: number;
+  todaySuccess: number;
+  todayFailures: number;
+  todayCacheHits: number;
+  todayBlocked: number;
+  todayInputTokens: number;
+  todayOutputTokens: number;
+  todayEstimatedCostUsd: number | null;
+  monthCalls: number;
+  monthCacheHits: number;
+  monthInputTokens: number;
+  monthOutputTokens: number;
+  monthEstimatedCostUsd: number | null;
+  totalEstimatedCostUsd: number | null;
+  quotaExhaustedToday: boolean;
+};
+
+export type AiBillingRecord = {
+  id: number;
+  provider: string;
+  billingMonth: string;
+  amountUsd: number;
+  memo: string | null;
+  recordedAt: string;
+};
+
+export type AiCostUsage = {
+  today: string;
+  month: string;
+  mode: string;
+  paidApiEnabled: boolean;
+  paidFallbackEnabled: boolean;
+  cacheEnabled: boolean;
+  dailyRequestLimit: number;
+  dailyRequestsUsed: number;
+  dailyLimitReached: boolean;
+  budget: {
+    month: string;
+    budgetUsd: number;
+    spentUsd: number;
+    reservedUsd: number;
+    remainingUsd: number;
+    blockedCount: number;
+    exceeded: boolean;
+  };
+  providers: AiProviderUsage[];
+  monthEstimatedCostUsd: number | null;
+  monthActualBilledUsd: number | null;
+  billingRecords: AiBillingRecord[];
+  alerts: string[];
+  note: string;
+};
+
+export function usd(value: number | string | null | undefined, digits = 4): string {
+  if (value === null || value === undefined || value === "") return "-";
+  const n = Number(value);
+  return Number.isFinite(n) ? `$${n.toFixed(digits)}` : "-";
+}
 
 export type AiAnalysisRow = {
   id: number;
@@ -707,6 +844,7 @@ export type AiAnalysisRow = {
   targetType: string | null;
   targetId: number | null;
   createdAt: string;
+  billingType?: string | null;
 };
 
 export type AiUsage = {
@@ -764,6 +902,8 @@ export type ProductAnalysis = {
   needsConfirmation: string[];
   warnings: string[];
   similarProducts: { productId: number; productName: string; score: number }[];
+  billingType?: string | null;
+  notices?: string[];
 };
 
 export type ProductPrepare = {

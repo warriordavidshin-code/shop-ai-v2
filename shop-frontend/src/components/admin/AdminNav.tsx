@@ -67,8 +67,23 @@ export const adminNavGroups: NavGroup[] = [
     label: "AI 운영관리",
     links: [
       { href: "/admin/ai", label: "AI MD 통계" },
-      { href: "/admin/ai/operations", label: "분석 이력·사용량" },
+      { href: "/admin/ai/usage", label: "AI 사용량 관리" },
+      { href: "/admin/ai/settings", label: "AI 환경설정" },
+      { href: "/admin/ai/operations", label: "분석 이력" },
       { href: "/admin/ai/recommendations", label: "AI 발주 추천" },
+    ],
+  },
+  {
+    label: "AI 추천관리",
+    links: [
+      { href: "/admin/recommendations", label: "추천 설정·가중치", exact: true },
+      { href: "/admin/recommendations/rules", label: "코디 규칙" },
+      { href: "/admin/recommendations/preview", label: "추천 미리보기" },
+      { href: "/admin/recommendations/popular", label: "인기 상품" },
+      { href: "/admin/recommendations/purchase", label: "매입 추천" },
+      { href: "/admin/recommendations/slow-moving", label: "재고 소진 추천" },
+      { href: "/admin/recommendations/analytics", label: "추천 성과" },
+      { href: "/admin/recommendations/features", label: "상품 특성" },
     ],
   },
   {

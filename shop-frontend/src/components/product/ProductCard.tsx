@@ -3,17 +3,28 @@ import { Price } from "@/components/ui/Price";
 import { ImageRollingGallery } from "@/components/ui/ImageRollingGallery";
 import type { ProductSummary } from "@/features/products/api";
 
-export function ProductCard({ product }: { product: ProductSummary }) {
+export function ProductCard({
+  product,
+  href,
+  onNavigate,
+  note,
+}: {
+  product: ProductSummary;
+  href?: string;
+  onNavigate?: () => void;
+  note?: string | null;
+}) {
   const urls =
     product.imageUrls && product.imageUrls.length > 0
       ? product.imageUrls
       : product.mainImageUrl
         ? [product.mainImageUrl]
         : [];
+  const target = href ?? `/products/${product.productId}`;
 
   return (
     <article className="group flex flex-col gap-3">
-      <Link href={`/products/${product.productId}`} className="block">
+      <Link href={target} className="block" onClick={onNavigate}>
         <ImageRollingGallery
           images={urls.map((url) => ({ url, alt: product.productName }))}
           placeholderLabel={product.brandName}
@@ -23,11 +34,13 @@ export function ProductCard({ product }: { product: ProductSummary }) {
       <div className="flex flex-col gap-1">
         <p className="text-[11px] tracking-[0.08em] text-muted-foreground">{product.brandName}</p>
         <Link
-          href={`/products/${product.productId}`}
+          href={target}
+          onClick={onNavigate}
           className="line-clamp-2 text-sm font-medium leading-snug text-foreground hover:underline"
         >
           {product.productName}
         </Link>
+        {note ? <p className="line-clamp-1 text-xs text-brand">{note}</p> : null}
         <Price
           salePrice={product.salePrice}
           normalPrice={product.normalPrice}
